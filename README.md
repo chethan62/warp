@@ -184,8 +184,19 @@ If the tunnel is up but Cloudflare says `warp=off`, the UI says so.
 ## Routing
 
 **Whole computer** — the "Route this computer" switch (or `warp route on`) sets the
-operating system's proxy to this tunnel, so every proxy-aware app follows it:
-browsers, app stores, most GUI toolkits.
+operating system's proxy to this tunnel. Which clients then follow it is not
+uniform, and it is worth knowing before you rely on it:
+
+| Client | Follows it? |
+|---|---|
+| KDE/KIO apps (Dolphin, and most KDE tooling) | **yes** — measured: a KIO client left from the tunnel's Cloudflare address with `warp=on`, and went direct again the moment the setting was turned off *while the tunnel stayed up* |
+| command-line tools (`curl`, `wget`) | only if `http_proxy`/`all_proxy` are set, and warp does not set them — use `--socks5-hostname` instead |
+| browsers | **not guaranteed.** A Chromium here went direct with the setting on, and ignored the GNOME socks setting in a control too, so that test cannot tell "ignores system proxies" from "never reads them". Do not assume a browser is covered: set its own proxy, or use DoH |
+| GNOME / macOS / Windows | not measured on this machine |
+
+An earlier version of this file claimed "browsers, app stores, most GUI toolkits"
+follow the setting. That was never measured and the measurement does not support
+it.
 
 | Platform | Mechanism |
 |---|---|
@@ -194,8 +205,8 @@ browsers, app stores, most GUI toolkits.
 | macOS | `networksetup -setwebproxy` / `-setsocksfirewallproxy` |
 | Windows | `reg` → `HKCU\\...\\Internet Settings` (WinINET) |
 
-All per-user, no elevation. Stopping the tunnel clears the setting automatically,
-so the machine is never left pointing at a dead proxy.
+All per-user, no elevation. Stopping the tunnel clears the setting, and if it ever
+outlives the tunnel — a crash, a reboot — the next launch clears it too and says so.
 
 **One app** — point a single tool at the SOCKS5 listener:
 

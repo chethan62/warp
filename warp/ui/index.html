@@ -175,7 +175,7 @@ function renderRouting(sp, stale, broken) {
     : stale ? 'On, but nothing is listening - this is blocking traffic. Turn it off.'
     : broken ? 'On, but the tunnel is up and not carrying traffic - this is probably breaking your connection. Turn it off.'
     : on ? 'On — ' + (sp.proxy || 'set') + ' (' + sp.backend + ')'
-         : 'Set the system proxy so apps use the tunnel (' + sp.backend + ')';
+         : 'Point the system proxy at the tunnel - apps that read it follow (' + sp.backend + ')';
 }
 
 async function refresh() {
