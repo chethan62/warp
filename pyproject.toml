@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "warp"
+version = "1.0.0"
+description = "Cloudflare WARP client — userspace, no root, cross-platform"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []          # stdlib only: no pip packages, no node_modules, no build step
+
+[project.scripts]
+warp = "warp.__main__:main"
+
+[tool.setuptools]
+packages = ["warp"]
+
+[tool.setuptools.package-data]
+warp = ["ui/*.html"]

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>warp</title>
+<style>
+/* Fluent 2 tokens */
+:root{
+  --font:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Inter,sans-serif;
+  --accent:#0f6cbd; --accent-hover:#115ea3; --accent-pressed:#0c3b5e;
+  --bg:linear-gradient(160deg,#f7f8fa,#eef1f5);
+  --card:rgba(255,255,255,.72); --solid:#fff; --bar:rgba(255,255,255,.55);
+  --text:#1b1b1b; --text-2:#5c5c5c; --text-3:#8a8a8a;
+  --stroke:rgba(0,0,0,.10); --stroke-2:rgba(0,0,0,.06);
+  --idle:#c8c8c8; --idle-2:#a0a0a0;
+  --ok:#107c41; --err:#c42b1c;
+  --r:4px; --rc:8px;
+  --e4:0 2px 4px rgba(0,0,0,.14),0 0 2px rgba(0,0,0,.12);
+  --e8:0 6px 14px rgba(0,0,0,.16),0 0 2px rgba(0,0,0,.12);
+}
+@media (prefers-color-scheme:dark){:root{
+  --accent:#479ef5; --accent-hover:#62abf5; --accent-pressed:#2886de;
+  --bg:linear-gradient(160deg,#1f1f1f,#181818);
+  --card:rgba(255,255,255,.055); --solid:#272727; --bar:rgba(255,255,255,.03);
+  --text:#fff; --text-2:#adadad; --text-3:#7a7a7a;
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.06);
+  --idle:#5a5a5a; --idle-2:#6e6e6e;
+  --ok:#54b054; --err:#ff99a4;
+  --e4:0 2px 4px rgba(0,0,0,.28),0 0 2px rgba(0,0,0,.24);
+  --e8:0 6px 14px rgba(0,0,0,.38),0 0 2px rgba(0,0,0,.24);
+}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font:14px/20px var(--font);color:var(--text);background:var(--bg);
+     display:flex;flex-direction:column;align-items:center}
+@media (prefers-reduced-motion:no-preference){*{transition:background-color .12s ease,box-shadow .12s ease,transform .12s ease}}
+.bar{width:100%;display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--bar);
+     border-bottom:1px solid var(--stroke-2);backdrop-filter:blur(30px) saturate(160%)}
+.mark{width:22px;height:22px;border-radius:6px;background:var(--accent);display:grid;place-items:center;
+      color:#fff;font-weight:600;font-size:12px}
+.title{font-weight:600}
+.sub{color:var(--text-3);font-size:12px}
+main{flex:1;width:100%;max-width:460px;padding:36px 20px 24px;display:flex;flex-direction:column;align-items:center;gap:20px}
+/* big connect toggle, the 1.1.1.1 shape */
+.toggle{width:200px;height:200px;border-radius:50%;border:1px solid var(--stroke);background:var(--card);
+        box-shadow:var(--e4);cursor:pointer;display:grid;place-items:center;position:relative;padding:0}
+.toggle:hover{box-shadow:var(--e8)}
+.toggle:focus-visible{outline:2px solid var(--text);outline-offset:4px}
+.toggle:active{transform:scale(.985)}
+.toggle .ring{width:150px;height:150px;border-radius:50%;border:3px solid var(--idle);display:grid;place-items:center}
+.toggle .glyph{width:72px;height:72px;color:var(--idle-2)}
+.toggle[aria-checked="true"] .ring{border-color:var(--accent)}
+.toggle[aria-checked="true"] .glyph{color:var(--accent)}
+.toggle[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+.state{font-size:20px;font-weight:600;margin:0}
+.state .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--idle-2);margin-right:8px;vertical-align:middle}
+.state.on .dot{background:var(--ok)}
+.hint{color:var(--text-2);font-size:12.5px;margin:-14px 0 0;text-align:center;min-height:18px}
+.card{width:100%;background:var(--card);border:1px solid var(--stroke);border-radius:var(--rc);
+      box-shadow:var(--e4);backdrop-filter:blur(20px) saturate(150%);padding:14px 16px}
+dl{display:grid;grid-template-columns:7rem 1fr;gap:8px 14px;margin:0;font-size:12.5px}
+dt{color:var(--text-3)}
+dd{margin:0;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--text-2);word-break:break-all}
+.err{color:var(--err);font-size:12.5px;text-align:center;min-height:18px;margin:0}
+.foot{color:var(--text-3);font-size:11.5px;text-align:center;padding:0 0 18px;max-width:460px}
+/* Fluent toggle switch */
+.switchrow{display:flex;align-items:center;gap:16px;justify-content:space-between}
+.switchrow .t{font-weight:600;font-size:14px}
+.switchrow .s{color:var(--text-2);font-size:12.5px;margin-top:2px}
+.switch{width:40px;height:20px;border-radius:10px;border:1px solid var(--stroke);background:var(--idle);
+        position:relative;cursor:pointer;flex:none;padding:0}
+.switch .knob{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff}
+.switch[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
+.switch[aria-checked="true"] .knob{left:23px}
+.switch:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.switch[disabled]{opacity:.45;cursor:default}
+@media (prefers-reduced-motion:no-preference){.switch .knob{transition:left .12s ease}}
+button.link{background:none;border:0;color:var(--accent);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="mark" aria-hidden="true">w</div>
+  <div class="title">warp</div>
+  <div class="sub">Cloudflare WARP</div>
+</header>
+
+<main>
+  <button class="toggle" id="toggle" role="switch" aria-checked="false" aria-label="Connect to WARP">
+    <span class="ring">
+      <!-- inline SVG, not the U+23FB glyph: fat fonts substitute that one small -->
+      <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M12 3.2v8.6"/>
+        <path d="M7.4 6.4a7.2 7.2 0 1 0 9.2 0"/>
+      </svg>
+    </span>
+  </button>
+
+  <p class="state" id="state"><span class="dot"></span><span id="stateText">Checking…</span></p>
+  <p class="hint" id="hint">—</p>
+
+  <section class="card">
+    <div class="switchrow">
+      <div>
+        <div class="t">Route this computer</div>
+        <div class="s" id="spSub">Set the system proxy so apps use the tunnel</div>
+      </div>
+      <button class="switch" id="spSwitch" role="switch" aria-checked="false"
+              aria-label="Route this computer through warp"><span class="knob"></span></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <dl>
+      <dt>egress IP</dt><dd id="ip">—</dd>
+      <dt>location</dt><dd id="loc">—</dd>
+      <dt>warp</dt><dd id="warp">—</dd>
+      <dt>socks5</dt><dd id="socks">—</dd>
+      <dt>wireproxy</dt><dd id="bin">—</dd>
+    </dl>
+  </section>
+  <p class="err" id="err"></p>
+  <p class="foot">Browsers and other proxy-aware apps follow the system proxy above.
+  Apps that open raw sockets would need a TUN interface, which requires root.
+  <button class="link" id="reset">Re-register account</button></p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let busy = false;
+
+function render(s) {
+  const on = !!s.connected;
+  const t = $('toggle');
+  t.setAttribute('aria-checked', on ? 'true' : 'false');
+  t.setAttribute('aria-label', on ? 'Disconnect from WARP' : 'Connect to WARP');
+  $('state').className = 'state' + (on ? ' on' : '');
+  $('stateText').textContent = busy ? (on ? 'Disconnecting…' : 'Connecting…')
+                                   : (on ? 'Connected' : (s.running ? 'Tunnel up — not WARP' : 'Disconnected'));
+  $('hint').textContent = on ? 'Traffic through the proxy exits via Cloudflare WARP.'
+                             : 'Turn on to route through Cloudflare WARP.';
+  $('ip').textContent = s.ip || '—';
+  $('loc').textContent = s.loc || '—';
+  $('warp').textContent = s.warp || (s.running ? 'unknown' : 'off');
+  $('socks').textContent = '127.0.0.1:' + s.socks_port;
+  renderRouting(s.system_proxy);
+  $('bin').textContent = s.wireproxy ? s.wireproxy.split(/[\\/]/).pop() : 'not found';
+  $('bin').title = s.wireproxy || '';
+  $('err').textContent = s.error || (s.wireproxy ? '' : 'wireproxy is not installed — see README');
+}
+
+function renderRouting(sp) {
+  const on = !!(sp && sp.enabled);
+  const sw = $('spSwitch');
+  sw.setAttribute('aria-checked', on ? 'true' : 'false');
+  sw.disabled = !(sp && sp.supported);
+  $('spSub').textContent = !(sp && sp.supported)
+    ? 'No supported system-proxy backend on this platform'
+    : on ? 'On — ' + (sp.proxy || 'set') + ' (' + sp.backend + ')'
+         : 'Set the system proxy so apps use the tunnel (' + sp.backend + ')';
+}
+
+async function refresh() {
+  try { render(await (await fetch('/api/status')).json()); }
+  catch (e) { $('err').textContent = 'app unreachable: ' + e.message; }
+}
+
+$('toggle').addEventListener('click', async () => {
+  if (busy) return;
+  busy = true; await refresh();
+  try {
+    const cur = await (await fetch('/api/status')).json();
+    const r = await (await fetch(cur.connected ? '/api/disconnect' : '/api/connect', { method: 'POST' })).json();
+    if (r.error) $('err').textContent = r.error + (r.hint ? ' — ' + r.hint : '');
+  } catch (e) { $('err').textContent = e.message; }
+  busy = false; refresh();
+});
+
+$('spSwitch').addEventListener('click', async () => {
+  const on = $('spSwitch').getAttribute('aria-checked') === 'true';
+  $('spSwitch').disabled = true;
+  try {
+    const r = await (await fetch(on ? '/api/system-proxy/off' : '/api/system-proxy/on',
+                                   { method: 'POST' })).json();
+    if (r.error) $('err').textContent = r.error;
+  } catch (e) { $('err').textContent = e.message; }
+  $('spSwitch').disabled = false; refresh();
+});
+
+$('reset').addEventListener('click', async () => {
+  await fetch('/api/reset', { method: 'POST' }); refresh();
+});
+
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>
