@@ -1,0 +1,62 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, because a push-triggered job can only ever tell you about code you
+    # just changed. This job's whole value is noticing when the ground moved:
+    # an upstream yank, a rename, a dropped Python version.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+# No `run:` step below interpolates untrusted event data: the only substitution
+# is `matrix.python-version`, from the fixed list above. Nothing from a PR
+# title/body/branch reaches a shell.
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyproject declares >=3.9. This matrix is the thing that keeps that
+        # claim honest instead of aspirational.
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # stdlib only — deliberately no install step, because there is nothing
+      # to install and a step that does nothing is a step that can break
+      - name: tests
+        run: python tests/test_warp.py
+
+      - name: every module compiles
+        run: python -m compileall -q warp/
+
+      - name: CLI is wired
+        run: |
+          python -m warp --help > /dev/null
+          python -m warp selftest > /dev/null
+
+      - name: no hardcoded user paths in shipped code
+        run: "! grep -rn --include='*.py' --include='*.html' '/home/' warp/"
+
+  upstreams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: pinned third-party artifacts still exist upstream
+        run: python packaging/check-upstreams.py

@@ -23,6 +23,9 @@ done
 
 APPIMAGE_TOOL="${APPIMAGE_TOOL:-appimagetool}"
 PBS_REPO="astral-sh/python-build-standalone"
+# Pinned, not "latest": the floating tag moves under you, so rebuilding an old
+# release would silently pick a different interpreter. PBS_TAG=latest floats.
+PBS_TAG="${PBS_TAG:-20261003}"
 PBS_MATCH="${PBS_MATCH:-cpython-3.12.*-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz}"
 
 WORK="$(mktemp -d)"
@@ -55,7 +58,9 @@ trim_python() {
 fetch_python() {
     dest="$WORK/python"
     echo "fetching a python-build-standalone release matching: $PBS_MATCH" >&2
-    url="$(curl -sL "https://api.github.com/repos/$PBS_REPO/releases/latest" \
+    endpoint="releases/$PBS_TAG"
+    [ "$PBS_TAG" = "latest" ] && endpoint="releases/latest"
+    url="$(curl -sL "https://api.github.com/repos/$PBS_REPO/$endpoint" \
         | python3 -c "
 import json,sys,re
 pat=re.compile(sys.argv[1])

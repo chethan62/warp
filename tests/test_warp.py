@@ -6,6 +6,7 @@ generated wireproxy config, and the chunked-response decoder.
 
 from __future__ import annotations
 
+import platform
 import sys
 from pathlib import Path
 
@@ -76,6 +77,14 @@ def test_servfail_shape():
     assert r[3] & 0x0F == 2, "rcode must be SERVFAIL"
     assert int.from_bytes(r[4:6], "big") == 1, "qdcount must be preserved"
     assert dnsproxy.servfail(b"short") == b""
+
+
+def test_windows_arm64_uses_the_emulated_asset():
+    # upstream publishes no windows/arm64 build; Windows 11 on ARM runs amd64
+    from unittest import mock
+    with mock.patch.object(sys, "platform", "win32"), \
+         mock.patch.object(platform, "machine", return_value="ARM64"):
+        assert provision.asset_name() == "wireproxy_windows_amd64.tar.gz", provision.asset_name()
 
 
 def test_dechunk():

@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import urllib.error
 import urllib.request
 
 from . import paths
@@ -32,11 +33,18 @@ _ARCH = {
 }
 
 
+# Upstream publishes no windows/arm64 build. Windows 11 on ARM runs x64 binaries
+# under emulation, so ask for the amd64 asset rather than failing on a platform
+# that otherwise works. (Verified that the asset exists; not run on ARM hardware.)
+_EMULATED = {("win32", "arm64"): "amd64"}
+
+
 def asset_name() -> str | None:
     plat = _PLATFORM.get(sys.platform)
     arch = _ARCH.get(platform.machine().lower())
     if not plat or not arch:
         return None
+    arch = _EMULATED.get((sys.platform, arch), arch)
     return f"wireproxy_{plat}_{arch}.tar.gz"
 
 
@@ -93,7 +101,15 @@ def ensure() -> str:
         raise RuntimeError(f"no wireproxy build for {sys.platform}/{platform.machine()}")
 
     url = f"{_BASE}/v{VERSION}/{asset}"
-    blob = _download(url)
+    try:
+        blob = _download(url)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise RuntimeError(
+                f"wireproxy v{VERSION} has no build for {sys.platform}/"
+                f"{platform.machine()} (looked for {asset}); set "
+                f"WARP_WIREPROXY_VERSION to a release that does") from exc
+        raise
     _extract_binary(blob, dest)
     if sys.platform != "win32":
         os.chmod(dest, os.stat(dest).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
