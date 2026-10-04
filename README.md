@@ -80,7 +80,8 @@ PYTHON_BUNDLE=/opt/python3 ./packaging/build-appimage.sh   # bring your own
 
 `--with-python` pulls a python-build-standalone release, drops what a CLI never
 touches (pip, idle, tk, tests, headers), and bundles the rest — a 404 MB debug
-tree becomes ~27 MB of AppImage. The AppRun clears the `PYTHONHOME` that the
+tree becomes ~27 MB of AppImage.  `packaging/publish-release.py`
+(needs `GH_TOKEN`) publishes the built image as a GitHub release. The AppRun clears the `PYTHONHOME` that the
 AppImage runtime injects pointing at its own mount, which would otherwise kill
 the bundled interpreter on startup.
 
