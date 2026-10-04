@@ -33,7 +33,8 @@ curl -fsSL https://github.com/chethan62/warp/releases/latest/download/warp-linux
 
 That is the whole install: a plain tree with a bundled Python, no root, and no
 **FUSE** — nothing is mounted. `warp` lands in `~/.local/bin` with a desktop
-entry beside it.
+entry beside it. Re-running that same command updates an existing install —
+it overwrites the tree, so there is nothing to uninstall first.
 
 An AppImage is attached to each release as well, and it no longer needs FUSE
 either: it is built with [uruntime](https://github.com/VHSgunzo/uruntime), which

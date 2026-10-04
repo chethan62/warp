@@ -244,6 +244,45 @@ def test_dechunk():
     assert _dechunk(b"plain, not chunked") == b"plain, not chunked"
 
 
+def test_the_ui_server_stops_when_its_window_closes():
+    """Closing the app window must not leave the server holding the port.
+
+    The page sends POST /api/quit from a pagehide beacon. The server honours it
+    only if the route exists AND shutdown() runs off the serving thread, so both
+    halves are worth pinning.
+    """
+    import threading as _threading
+    from http.server import ThreadingHTTPServer
+    from urllib.error import HTTPError
+    from urllib.request import Request, urlopen
+
+    from warp import webui
+    from warp.tunnel import Tunnel
+
+    # a socks port nothing listens on, so status() answers instantly
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), webui.make_handler(Tunnel(1)))
+    port = httpd.server_address[1]
+    serving = _threading.Thread(target=httpd.serve_forever, daemon=True)
+    serving.start()
+    try:
+        assert urlopen(f"http://127.0.0.1:{port}/api/status", timeout=10).status == 200
+
+        # control: a stray GET must not stop it, or any page could end the server
+        try:
+            urlopen(f"http://127.0.0.1:{port}/api/quit", timeout=10)
+            raise AssertionError("GET /api/quit did not 404")
+        except HTTPError as exc:
+            assert exc.code == 404, exc.code
+        assert serving.is_alive(), "a GET /api/quit stopped the server"
+
+        req = Request(f"http://127.0.0.1:{port}/api/quit", method="POST")
+        assert urlopen(req, timeout=10).status == 200
+        serving.join(timeout=10)
+        assert not serving.is_alive(), "the server survived the close beacon"
+    finally:
+        httpd.server_close()
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

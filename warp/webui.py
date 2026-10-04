@@ -7,6 +7,7 @@ from disk, so there is no build step and no node_modules.
 from __future__ import annotations
 
 import json
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -58,6 +59,20 @@ def make_handler(tunnel: Tunnel):
                 return self._json(tunnel.route_system(True))
             if route == "/api/system-proxy/off":
                 return self._json(tunnel.route_system(False))
+            if route == "/api/quit":
+                # The page sends this when the app window closes. Without it the
+                # server outlives its window and keeps the port, so the next
+                # `warp ui` cannot bind.
+                #
+                # Only the server stops. The tunnel is left alone on purpose:
+                # closing a window should not silently tear down a connection the
+                # user is browsing through, and `warp down` is how you end it.
+                self._json({"ok": True})
+                print("window closed — UI server stopped "
+                      "(the tunnel, if up, is still up; `warp down` ends it)")
+                # shutdown() waits for serve_forever, so it needs its own thread
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                return
             return self._json({"error": "not found"}, 404)
 
     return Handler
@@ -71,7 +86,9 @@ def serve(port: int = 8787, host: str = "127.0.0.1", open_browser: bool = True,
     print(f"warp ready — {url}")
     if open_browser:
         # its own window by default; a tab only if asked for or nothing else works
-        opened = window.open_ui(url, profile_dir=paths.config_dir() / "browser",
+        # ?app=1 marks this as THE app window, which is the only thing allowed
+        # to stop the server when it closes. A browser tab gets the plain URL.
+        opened = window.open_ui(f"{url}?app=1", profile_dir=paths.config_dir() / "browser",
                                 prefer_tab=prefer_tab)
         if opened == "none":
             print("no browser found — open the URL above by hand")

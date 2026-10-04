@@ -221,6 +221,13 @@ $('reset').addEventListener('click', async () => {
 });
 
 refresh();
+// Closing the app window stops its server, so the port is free for the next
+// launch. Gated on ?app=1: a plain browser tab must not be able to end a server
+// someone else may be using. sendBeacon survives the page being torn down,
+// which a plain fetch in pagehide does not reliably do.
+if (new URLSearchParams(location.search).has('app')) {
+  addEventListener('pagehide', () => navigator.sendBeacon('/api/quit'));
+}
 setInterval(refresh, 4000);
 </script>
 </body>
