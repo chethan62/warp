@@ -63,13 +63,42 @@ else
     say "no icon found in the image — the entry will use a generic one"
 fi
 
+# An AppImage normally mounts itself with FUSE, and libfuse2 is NOT installed by
+# default on many systems (Ubuntu dropped it), where the image dies with
+# "dlopen(): error loading libfuse.so.2" and the app is unrunnable. The image can
+# unpack itself instead, so probe by launching and pick the launcher accordingly.
+say "checking it actually runs"
+FUSE_OK=1
+if ! "$TARGET" selftest 2>/dev/null; then
+    FUSE_OK=0
+    say "no FUSE here — the app will unpack itself on each launch"
+    APPIMAGE_EXTRACT_AND_RUN=1 "$TARGET" selftest
+fi
+[ "$FUSE_OK" = 1 ] && say "selftest passed"
+
+EXEC="$TARGET"
+if [ "$FUSE_OK" = 1 ]; then
+    rm -f "$APP_DIR/warp"   # a wrapper from an earlier no-FUSE install
+fi
+if [ "$FUSE_OK" = 0 ]; then
+    EXEC="$APP_DIR/warp"
+    cat > "$EXEC" <<EOF
+#!/bin/sh
+# warp launcher. This machine has no libfuse2, so the image cannot mount itself;
+# it unpacks to a temp dir and runs instead. Re-run the installer after
+# installing FUSE to get the faster mounted path back.
+exec env APPIMAGE_EXTRACT_AND_RUN=1 "$TARGET" "\$@"
+EOF
+    chmod +x "$EXEC"
+fi
+
 cat > "$DESKTOP_DIR/warp.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=warp
 GenericName=Cloudflare WARP client
 Comment=Route this computer through Cloudflare WARP, without root
-Exec="$TARGET" %U
+Exec="$EXEC" %U
 Icon=warp
 Terminal=false
 Categories=Network;
@@ -99,7 +128,4 @@ command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$DAT
 
 say "installed: $TARGET"
 say "launcher:  $DESKTOP_DIR/warp.desktop (also in your app menu)"
-say "checking it actually runs"
-# normal launch first (what the launcher does), then the FUSE-free fallback
-"$TARGET" selftest 2>/dev/null || APPIMAGE_EXTRACT_AND_RUN=1 "$TARGET" selftest
-say "run it with: $TARGET    (or 'warp' from the app menu)"
+say "run it with: $EXEC    (or 'warp' from the app menu)"

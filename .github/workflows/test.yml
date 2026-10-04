@@ -115,7 +115,13 @@ jobs:
         run: sh packaging/install.sh
 
       - name: the installed app runs
-        run: ~/Applications/warp.AppImage selftest
+        # run the desktop entry's target, i.e. exactly what the user's launcher
+        # does. Running the AppImage directly would pass on a host with FUSE while
+        # the launcher fails on one without it.
+        run: |
+          EXEC=$(grep -oP '(?<=^Exec=")[^"]+' ~/.local/share/applications/warp.desktop)
+          echo "launcher: $EXEC"
+          "$EXEC" selftest
 
       - name: it left a usable launcher behind
         run: |
