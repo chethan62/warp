@@ -51,9 +51,23 @@ def wireproxy_assets() -> list[str]:
     combos = [("linux", a) for a in ("386", "amd64", "arm", "arm64")]
     combos += [("darwin", "amd64"), ("darwin", "arm64")]
     combos += [("windows", a) for a in ("386", "amd64", "arm64")]
-    # windows/arm64 resolves through provision's emulation fallback
-    combos = [(p, provision._EMULATED.get(("win32", a), a)) for p, a in combos]
-    return [f"wireproxy_{p}_{a}.tar.gz" for p, a in combos]
+
+    assets: list[str] = []
+    for platform, arch in combos:
+        # Only windows/arm64 is served by another architecture's asset (provision
+        # falls back to amd64 there). Consulting that table for every platform,
+        # keyed on "win32", silently remapped linux/arm64 and darwin/arm64 to
+        # amd64: those two assets were never checked, and a yank would have been
+        # reported as everything being fine. The key has to match the platform
+        # provision would actually see.
+        resolved = arch
+        if platform == "windows":
+            resolved = provision._EMULATED.get(("win32", arch), arch)
+        name = f"wireproxy_{platform}_{resolved}.tar.gz"
+        # windows/arm64 and windows/amd64 share one asset: check a URL once
+        if name not in assets:
+            assets.append(name)
+    return assets
 
 
 def _pinned(src: str, name: str) -> str | None:
