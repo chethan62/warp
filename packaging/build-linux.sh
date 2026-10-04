@@ -46,6 +46,18 @@ PBS_REPO="astral-sh/python-build-standalone"
 PBS_TAG="${PBS_TAG:-20261003}"
 PBS_ASSET="${PBS_ASSET:-cpython-3.12.15+${PBS_TAG}-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz}"
 
+# The AppImage runtime. The stock appimagetool runtime mounts the image with
+# FUSE, so a machine without libfuse2 cannot start the app at all. uruntime
+# mounts when it can and EXTRACTS when it cannot, which removes that dependency
+# instead of working around it. Its default policy is already what we want:
+#   URUNTIME_EXTRACT=3 -> try FUSE, else extract when the image is <= 350 MiB
+# and this image is ~18 MB, so no policy edit is needed.
+# ponytail: if the image ever passes 350 MiB, set URUNTIME_EXTRACT=2 in the
+# runtime ELF: sed -i 's|URUNTIME_EXTRACT=[0-9]|URUNTIME_EXTRACT=2|'
+URUNTIME_REPO="VHSgunzo/uruntime"
+URUNTIME_TAG="${URUNTIME_TAG:-v0.8.1}"
+URUNTIME_ASSET="${URUNTIME_ASSET:-uruntime-appimage-squashfs-x86_64}"
+
 WORK="$(mktemp -d)"
 APPDIR="$WORK/warp.AppDir"
 trap 'rm -rf "$WORK"' EXIT INT TERM
@@ -72,6 +84,16 @@ trim_python() {
     find "$root" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     find "$root" -name '*.pyc' -delete 2>/dev/null || true
 }
+
+fetch_runtime() {
+    dest="$WORK/uruntime"
+    url="https://github.com/$URUNTIME_REPO/releases/download/$URUNTIME_TAG/$URUNTIME_ASSET"
+    echo "fetching $URUNTIME_ASSET" >&2
+    curl -fsSL "$url" -o "$dest" || { echo "could not download $url" >&2; exit 1; }
+    chmod +x "$dest"
+    echo "$dest"
+}
+
 
 fetch_python() {
     dest="$WORK/python"
@@ -140,8 +162,15 @@ cp "$APPDIR/warp.png" "$APPDIR/.DirIcon"
 cp "$ROOT/packaging/warp.svg" "$APPDIR/warp.svg"
 cp "$APPDIR/warp.png" "$APPDIR/usr/share/icons/hicolor/512x512/apps/warp.png"
 
+if [ -n "${URUNTIME:-}" ]; then
+    RUNTIME="$URUNTIME"
+else
+    RUNTIME="$(fetch_runtime)"
+fi
+[ -x "$RUNTIME" ] || { echo "no executable runtime at $RUNTIME" >&2; exit 1; }
+
 OUT="$OUT_DIR/warp-$VERSION-x86_64.AppImage"
-ARCH=x86_64 "$APPIMAGE_TOOL" --no-appstream "$APPDIR" "$OUT"
+ARCH=x86_64 "$APPIMAGE_TOOL" --no-appstream --runtime-file "$RUNTIME" "$APPDIR" "$OUT"
 echo "built: $OUT ($(du -h "$OUT" | cut -f1))"
 
 # ── artifact 2: the FUSE-free tree ──────────────────────────────────────────

@@ -33,9 +33,14 @@ curl -fsSL https://github.com/chethan62/warp/releases/latest/download/warp-linux
 
 That is the whole install: a plain tree with a bundled Python, no root, and no
 **FUSE** — nothing is mounted. `warp` lands in `~/.local/bin` with a desktop
-entry beside it. (An AppImage is attached to each release as well, but AppImages
-mount themselves with FUSE and `libfuse2` is absent by default on many systems,
-including Ubuntu — which is why this is not the suggested install.)
+entry beside it.
+
+An AppImage is attached to each release as well, and it no longer needs FUSE
+either: it is built with [uruntime](https://github.com/VHSgunzo/uruntime), which
+mounts the image where FUSE is available and **extracts and runs it where it is
+not** — so `libfuse2` missing (the default on Ubuntu) is no longer fatal. It is
+still the second choice only because the tarball is one line and involves no
+runtime at all.
 
 Windows (PowerShell):
 
@@ -147,7 +152,8 @@ its state lives in the usual per-user config dir — not inside the image.
 
 Build it yourself (needs `appimagetool` and `rsvg-convert`):
 
-One build emits both Linux artifacts — the AppImage and the FUSE-free tarball:
+One build emits both Linux artifacts — the AppImage (with the uruntime runtime,
+so it launches with or without FUSE) and the tarball:
 
 ```sh
 ./packaging/build-linux.sh --with-python    # fetches a Python, trims it, bundles it

@@ -56,8 +56,21 @@ def wireproxy_assets() -> list[str]:
     return [f"wireproxy_{p}_{a}.tar.gz" for p, a in combos]
 
 
-def pbs_pin() -> tuple[str, str]:
-    """(tag, asset) exactly as the build script pins them."""
+def _pinned(src: str, name: str) -> str | None:
+    # PBS_TAG="${PBS_TAG:-20261003}"  ->  20261003
+    # Plain string work, not a regex: the escaped pattern for this was wrong
+    # twice and silently disabled the check both times, which is a bad property
+    # for the one thing whose only job is to notice.
+    prefix = f'{name}="${{{name}:-'
+    for line in src.splitlines():
+        line = line.strip()
+        if line.startswith(prefix) and line.endswith('}"'):
+            return line[len(prefix):-2]
+    return None
+
+
+def build_pins() -> dict:
+    """Every upstream artifact the build pins, read from the build script."""
     path = ROOT / "packaging" / "build-linux.sh"
     try:
         src = path.read_text()
@@ -66,27 +79,18 @@ def pbs_pin() -> tuple[str, str]:
         raise SystemExit(f"cannot read {path}: {exc} — the pin moved, so this "
                          f"check is no longer checking anything") from exc
 
-    def pinned(name: str) -> str | None:
-        # PBS_TAG="${PBS_TAG:-20261003}"  ->  20261003
-        # Read with plain string work rather than a regex. The escaped pattern
-        # for this was wrong twice and silently disabled the check both times,
-        # which is a bad property for the thing whose only job is to notice.
-        prefix = f'{name}="${{{name}:-'
-        for line in src.splitlines():
-            line = line.strip()
-            if line.startswith(prefix) and line.endswith('}"'):
-                return line[len(prefix):-2]
-        return None
-
-    tag = pinned("PBS_TAG")
-    asset = pinned("PBS_ASSET")
-    if not tag or not asset:
-        raise SystemExit(
-            f"could not read PBS_TAG/PBS_ASSET from {path} — "
-            "the pin moved, so this check is no longer checking anything"
-        )
+    pins = {}
+    for key in ("PBS_TAG", "PBS_ASSET", "URUNTIME_TAG", "URUNTIME_ASSET"):
+        value = _pinned(src, key)
+        if not value:
+            raise SystemExit(
+                f"could not read {key} from {path} — the pin moved, so this "
+                "check is no longer checking anything"
+            )
+        pins[key] = value
     # the script relies on the shell expanding this, so expand it here too
-    return tag, asset.replace("${PBS_TAG}", tag)
+    pins["PBS_ASSET"] = pins["PBS_ASSET"].replace("${PBS_TAG}", pins["PBS_TAG"])
+    return pins
 
 
 def main() -> int:
@@ -103,18 +107,24 @@ def main() -> int:
             failures.append(f"wireproxy {asset}: {status} {detail}")
         print(f"  {'ok  ' if ok else 'FAIL'} {asset:34} {status} {detail}")
 
-    tag, asset = pbs_pin()
-    # HEAD the URL the build itself would use. Resolving the name through the
-    # API would need the very quota the build just stopped needing, and would
-    # check a name rather than the URL - and the URL is what can rot.
-    url = f"https://github.com/astral-sh/python-build-standalone/releases/download/{tag}/{asset}"
-    print(f"\npython-build-standalone {tag} — the pinned asset:")
-    status, detail = head(url)
-    checked += 1
-    ok = status in (200, 302)
-    if not ok:
-        failures.append(f"pbs {asset}: {status} {detail}")
-    print(f"  {'ok  ' if ok else 'FAIL'} {asset}  {status} {detail}")
+    pins = build_pins()
+    # HEAD the URLs the build itself uses. Resolving these through the API would
+    # need the very quota the build stopped needing, and would check a name
+    # rather than the URL - and the URL is the part that can rot.
+    for label, repo, tag, asset in (
+        ("python-build-standalone", "astral-sh/python-build-standalone",
+         pins["PBS_TAG"], pins["PBS_ASSET"]),
+        ("uruntime", "VHSgunzo/uruntime",
+         pins["URUNTIME_TAG"], pins["URUNTIME_ASSET"]),
+    ):
+        url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+        print(f"\n{label} {tag} — the pinned artifact:")
+        status, detail = head(url)
+        checked += 1
+        ok = status in (200, 302)
+        if not ok:
+            failures.append(f"{label} {asset}: {status} {detail}")
+        print(f"  {'ok  ' if ok else 'FAIL'} {asset}  {status} {detail}")
 
     print(f"\n{checked} checked, {len(failures)} failed")
     for f in failures:

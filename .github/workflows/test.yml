@@ -159,13 +159,20 @@ jobs:
       # the script that fetches and assembles them, so a malformed API path
       # there (releases/ instead of releases/tags/) sailed straight past it and
       # only surfaced when the build was actually run. This job is that run.
-      - name: build both Linux artifacts and prove the AppImage runs
-        env:
-          # the runner has no FUSE: appimagetool has to unpack itself, not mount
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+      - name: build both Linux artifacts
         run: |
-          ./packaging/build-linux.sh --with-python
+          # appimagetool is itself an AppImage and this runner has no FUSE, so it
+          # has to unpack itself. That is a property of the BUILD TOOL.
+          APPIMAGE_EXTRACT_AND_RUN=1 ./packaging/build-linux.sh --with-python
+
+      - name: the AppImage needs no FUSE and no override
+        # Deliberately no APPIMAGE_EXTRACT_AND_RUN and no --appimage-* flag, on a
+        # runner with no libfuse2. This is the whole point of the runtime change:
+        # it mounts when it can, extracts when it cannot, by itself. It failed
+        # here before, with dlopen(): error loading libfuse.so.2.
+        run: |
           ./dist/warp-*-x86_64.AppImage selftest
+          ./dist/warp-*-x86_64.AppImage --appimage-help >/dev/null
 
       # The tarball is the install that does NOT depend on FUSE, so it is worth
       # running on a runner that has none - which is exactly this one.
