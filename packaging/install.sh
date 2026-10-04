@@ -42,11 +42,20 @@ say "downloading $(basename "$URL")"
 curl -fsSL "$URL" -o "$TARGET"
 chmod +x "$TARGET"
 
-# The icon lives inside the image; --appimage-extract needs no FUSE.
+# The icon lives inside the image. --appimage-extract needs no FUSE to unpack,
+# but the runtime still has to LOAD, and on a machine without libfuse.so.2 it
+# dies with "dlopen(): error loading libfuse.so.2" before doing anything (seen
+# in CI, which has no FUSE). APPIMAGE_EXTRACT_AND_RUN makes the image unpack
+# itself instead. Set only for our own calls: the launcher written below runs
+# the image normally, where mounting is faster.
 say "extracting the icon"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
-( cd "$WORK" && "$TARGET" --appimage-extract 'usr/share/icons/*' >/dev/null 2>&1 ) || true
+extract_icon() {
+    ( cd "$WORK" && "$TARGET" --appimage-extract 'usr/share/icons/*' >/dev/null 2>&1 ) ||
+    ( cd "$WORK" && APPIMAGE_EXTRACT_AND_RUN=1 "$TARGET" --appimage-extract 'usr/share/icons/*' >/dev/null 2>&1 )
+}
+extract_icon || true
 PNG=$(find "$WORK/squashfs-root" -name '*.png' 2>/dev/null | head -1 || true)
 if [ -n "$PNG" ]; then
     cp "$PNG" "$ICON_DIR/warp.png"
@@ -91,5 +100,6 @@ command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$DAT
 say "installed: $TARGET"
 say "launcher:  $DESKTOP_DIR/warp.desktop (also in your app menu)"
 say "checking it actually runs"
-"$TARGET" selftest
+# normal launch first (what the launcher does), then the FUSE-free fallback
+"$TARGET" selftest 2>/dev/null || APPIMAGE_EXTRACT_AND_RUN=1 "$TARGET" selftest
 say "run it with: $TARGET    (or 'warp' from the app menu)"
