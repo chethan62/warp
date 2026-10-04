@@ -17,7 +17,9 @@ def main(argv=None) -> int:
     common.add_argument("--port", type=int, default=8787, help="UI port (default 8787)")
     common.add_argument("--socks-port", type=int, default=DEFAULT_SOCKS_PORT,
                         help=f"SOCKS5 port (default {DEFAULT_SOCKS_PORT})")
-    common.add_argument("--no-browser", action="store_true", help="don't open a browser")
+    common.add_argument("--no-browser", action="store_true", help="don't open a UI window")
+    common.add_argument("--tab", action="store_true",
+                        help="open the UI in a browser tab instead of an app window")
 
     parser = argparse.ArgumentParser(
         prog="warp", description="Cloudflare WARP client (userspace, no root required)",
@@ -69,7 +71,8 @@ def main(argv=None) -> int:
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
 
-    webui.serve(port=args.port, open_browser=not args.no_browser)
+    webui.serve(port=args.port, open_browser=not args.no_browser,
+                prefer_tab=args.tab)
     return 0
 
 

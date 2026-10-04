@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from warp import cloudflare, dnsproxy, provision, sysproxy, x25519  # noqa: E402
+from warp import cloudflare, dnsproxy, provision, sysproxy, window, x25519  # noqa: E402
 from warp.netprobe import _dechunk  # noqa: E402
 
 
@@ -62,6 +62,48 @@ def test_sysproxy_backend_is_detected_per_platform():
         # a CI runner has no desktop session, so there may legitimately be no
         # backend here; only that nothing impossible is reported
         assert st["backend"] in (None, "kde", "gnome"), st
+
+
+def test_window_opens_in_app_mode():
+    cmd = window.command(["chromium"], "http://127.0.0.1:8787/", "/tmp/prof")
+    assert cmd[0] == "chromium"
+    assert "--app=http://127.0.0.1:8787/" in cmd, cmd
+    assert "--class=warp" in cmd, cmd
+    assert "--user-data-dir=/tmp/prof" in cmd, cmd
+    # a fresh profile shows Chrome's first-run flow without these
+    assert "--no-first-run" in cmd and "--no-default-browser-check" in cmd, cmd
+
+
+def test_flatpak_profile_goes_where_the_sandbox_can_write():
+    """~/.config does not exist inside a Flatpak sandbox.
+
+    Verified with `flatpak run --command=sh com.google.Chrome -c 'ls ~/.config/warp'`
+    -> "No such file or directory", because Flatpak exposes only ~/.var/app/<id>.
+    A host path there is silently ignored and the browser falls back to its own
+    profile, which is what happened before this was fixed.
+    """
+    flat = window.profile_for(["flatpak", "run", "com.google.Chrome"],
+                              Path("/home/x/.config/warp/browser"))
+    assert flat == str(Path.home() / ".var/app/com.google.Chrome/config/warp-browser"), flat
+    # a normal launcher keeps the host path
+    assert window.profile_for(["chromium"], Path("/tmp/p")) == "/tmp/p"
+    assert window.profile_for(["chromium"], None) is None
+
+
+def test_no_browser_falls_back_to_a_tab():
+    from unittest import mock
+    with mock.patch.object(window, "find", return_value=None), \
+         mock.patch("webbrowser.open", return_value=True) as opened:
+        assert window.open_ui("http://127.0.0.1:8787/") == "tab"
+        opened.assert_called_once()
+
+
+def test_prefer_tab_skips_the_window_entirely():
+    from unittest import mock
+    with mock.patch.object(window, "find") as find, \
+         mock.patch("webbrowser.open", return_value=True):
+        assert window.open_ui("http://127.0.0.1:8787/", prefer_tab=True) == "tab"
+        find.assert_not_called()
 
 
 def test_config_shape():

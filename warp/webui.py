@@ -7,11 +7,10 @@ from disk, so there is no build step and no node_modules.
 from __future__ import annotations
 
 import json
-import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-from . import __version__, cloudflare, paths
+from . import __version__, cloudflare, paths, window
 from .tunnel import Tunnel
 
 
@@ -64,13 +63,18 @@ def make_handler(tunnel: Tunnel):
     return Handler
 
 
-def serve(port: int = 8787, host: str = "127.0.0.1", open_browser: bool = True) -> None:
+def serve(port: int = 8787, host: str = "127.0.0.1", open_browser: bool = True,
+          prefer_tab: bool = False) -> None:
     tunnel = Tunnel()
     httpd = ThreadingHTTPServer((host, port), make_handler(tunnel))
     url = f"http://{host}:{port}/"
     print(f"warp ready — {url}")
     if open_browser:
-        webbrowser.open(url)
+        # its own window by default; a tab only if asked for or nothing else works
+        opened = window.open_ui(url, profile_dir=paths.config_dir() / "browser",
+                                prefer_tab=prefer_tab)
+        if opened == "none":
+            print("no browser found — open the URL above by hand")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

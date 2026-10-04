@@ -41,7 +41,7 @@ Pin a different wireproxy with `WARP_WIREPROXY_VERSION=1.1.3`.
 ## Run
 
 ```sh
-python3 -m warp            # serves the UI on http://127.0.0.1:8787 and opens it
+python3 -m warp            # serves the UI and opens it in its own window
 python3 -m warp up         # connect (registers on first run)
 python3 -m warp down       # disconnect
 python3 -m warp status     # JSON: running, connected, egress ip, warp state
@@ -50,7 +50,20 @@ python3 -m warp route off  # stop routing this computer
 python3 -m warp selftest   # X25519 vectors
 ```
 
-Flags (before or after the subcommand): `--port`, `--socks-port`, `--http-port`, `--no-browser`.
+Flags (before or after the subcommand): `--port`, `--socks-port`, `--no-browser`, `--tab`.
+
+### Window
+
+`warp ui` opens the UI as its own chromeless window rather than a browser tab: it
+drives the browser's application mode (`--app=`) with `--class=warp`, so the
+desktop gives it warp's own identity and taskbar entry. Nothing extra is
+installed — the browser is already there, and `--tab` asks for a plain tab.
+
+That needs a Chromium-family browser. A **Flatpak** one counts
+(`flatpak run com.google.Chrome`) and is easy to miss, since it has no `PATH`
+entry at all; its profile goes under `~/.var/app/<id>/config/`, because a
+Flatpak sandbox cannot see `~/.config`. Firefox is not a candidate — it has no
+chromeless app-window mode, so the honest outcome there is a tab.
 
 Or install it as a command:
 
@@ -197,6 +210,7 @@ possible without privilege — is researched and cited in
 | `warp/netprobe.py` | SOCKS5 CONNECT client + egress facts |
 | `warp/tunnel.py` | wireproxy lifecycle (start/stop/status) |
 | `warp/webui.py` | HTTP API + UI host |
+| `warp/window.py` | opens the UI as its own window (browser app mode) |
 | `warp/ui/index.html` | the Fluent UI |
 | `tests/test_warp.py` | runnable checks (no pytest needed) |
 | `packaging/` | AppImage build, release upload, upstream canary |
