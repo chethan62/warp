@@ -33,9 +33,18 @@ done
 APPIMAGE_TOOL="${APPIMAGE_TOOL:-appimagetool}"
 PBS_REPO="astral-sh/python-build-standalone"
 # Pinned, not "latest": the floating tag moves under you, so rebuilding an old
-# release would silently pick a different interpreter. PBS_TAG=latest floats.
+# release would silently pick a different interpreter.
+#
+# The asset NAME is pinned too, rather than discovered through the API. That
+# discovery is an unauthenticated call, and unauthenticated GitHub API calls are
+# rate-limited per IP - which shared CI runners share. The build then fails
+# because a quota ran out and reports it as "no asset matched", blaming a moved
+# pin for a local problem. A pinned URL needs no quota, and check-upstreams.py
+# HEADs this exact string, so a yank or rename is still caught before a build.
+#
+# Bumping PBS_TAG means bumping PBS_ASSET: the patch version is in the name.
 PBS_TAG="${PBS_TAG:-20261003}"
-PBS_MATCH="${PBS_MATCH:-cpython-3.12.*-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz}"
+PBS_ASSET="${PBS_ASSET:-cpython-3.12.15+${PBS_TAG}-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz}"
 
 WORK="$(mktemp -d)"
 APPDIR="$WORK/warp.AppDir"
@@ -66,18 +75,14 @@ trim_python() {
 
 fetch_python() {
     dest="$WORK/python"
-    echo "fetching a python-build-standalone release matching: $PBS_MATCH" >&2
-    endpoint="releases/tags/$PBS_TAG"
-    if [ "$PBS_TAG" = "latest" ]; then endpoint="releases/latest"; fi
-    url="$(curl -sL "https://api.github.com/repos/$PBS_REPO/$endpoint" \
-        | python3 -c "
-import json,sys,re
-pat=re.compile(sys.argv[1])
-for a in json.load(sys.stdin).get('assets',[]):
-    if pat.search(a['name']): print(a['browser_download_url']); break
-" "$PBS_MATCH")"
-    [ -n "$url" ] || { echo "no release asset matched $PBS_MATCH" >&2; exit 1; }
-    curl -sL "$url" -o "$WORK/python.tar.gz"
+    url="https://github.com/$PBS_REPO/releases/download/$PBS_TAG/$PBS_ASSET"
+    echo "fetching $PBS_ASSET" >&2
+    curl -fsSL "$url" -o "$WORK/python.tar.gz" || {
+        echo "could not download $url" >&2
+        echo "  if upstream renamed this asset, update PBS_ASSET here;" >&2
+        echo "  packaging/check-upstreams.py reports the same thing without a build" >&2
+        exit 1
+    }
     mkdir -p "$dest"
     tar -xzf "$WORK/python.tar.gz" -C "$dest" --strip-components=1
     echo "$dest"
