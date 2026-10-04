@@ -7,20 +7,22 @@ import urllib.request
 TOKEN = os.environ["GH_TOKEN"]
 API = "https://api.github.com"
 REPO = "chethan62/warp"
-TAG = "v1.0.0"
-ASSET = "dist/warp-1.0.0-x86_64.AppImage"
+_src = open(os.path.join(os.path.dirname(__file__), "..", "warp", "__init__.py")).read()
+VERSION = _src.split('__version__ = "')[1].split('"')[0]
+TAG = f"v{VERSION}"
+ASSET = f"dist/warp-{VERSION}-x86_64.AppImage"
 
-BODY = """A Cloudflare WARP client in the shape of the 1.1.1.1 app: one page, one big
+BODY = f"""A Cloudflare WARP client in the shape of the 1.1.1.1 app: one page, one big
 toggle, your egress IP. Cross-platform, **no root**, stdlib Python only.
 
 ### Download
 
-`warp-1.0.0-x86_64.AppImage` — self-contained, no system Python required.
+`warp-{VERSION}-x86_64.AppImage` — self-contained (~18 MB), no system Python required.
 
 ```sh
-chmod +x warp-1.0.0-x86_64.AppImage
-./warp-1.0.0-x86_64.AppImage          # UI on 127.0.0.1:8787
-./warp-1.0.0-x86_64.AppImage status   # every subcommand passes through
+chmod +x warp-{VERSION}-x86_64.AppImage
+./warp-{VERSION}-x86_64.AppImage          # UI on 127.0.0.1:8787
+./warp-{VERSION}-x86_64.AppImage status   # every subcommand passes through
 ```
 
 ### Verified from this exact image
