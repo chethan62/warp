@@ -79,8 +79,11 @@ def make_handler(tunnel: Tunnel):
 
 
 def serve(port: int = 8787, host: str = "127.0.0.1", open_browser: bool = True,
-          prefer_tab: bool = False) -> None:
-    tunnel = Tunnel()
+          prefer_tab: bool = False, socks_port: int | None = None) -> None:
+    # The socks port has to match the one the proxy was pointed at, or every
+    # check below is keyed to the wrong port: the staleness test would not see the
+    # real proxy and the startup repair could not clear it.
+    tunnel = Tunnel() if socks_port is None else Tunnel(socks_port)
     # Launching the app is the moment to undo a proxy that outlived its tunnel -
     # after a reboot this is the first thing that runs, and until it does, the
     # machine's proxy-aware apps are pointed at a dead port.

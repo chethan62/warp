@@ -71,7 +71,7 @@ def main(argv=None) -> int:
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
 
-    webui.serve(port=args.port, open_browser=not args.no_browser,
+    webui.serve(port=args.port, socks_port=args.socks_port, open_browser=not args.no_browser,
                 prefer_tab=args.tab)
     return 0
 

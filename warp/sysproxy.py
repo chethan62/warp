@@ -17,11 +17,38 @@ Every platform below can drive SOCKS, so one listener covers all of them:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 
 _NO_PROXY = "localhost,127.0.0.1,::1"
+
+_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostport(text: str | None) -> tuple[str, int] | None:
+    """Pull a host and port out of whatever shape a backend reports.
+
+    The four backends describe the same thing in three different strings -
+    'socks://127.0.0.1:25344', 'socks=127.0.0.1:25344', '127.0.0.1:25344' - so
+    callers matching on a substring matched only the shapes that happened to
+    contain ':port'. Two backends reported no port at all, so the proxy could
+    never be recognised as ours on GNOME or macOS.
+    """
+    if not text:
+        return None
+    match = re.search(r"(\[[0-9a-fA-F:]+\]|[0-9]{1,3}(?:\.[0-9]{1,3}){3}|[A-Za-z0-9.\-]+)"
+                      r":([0-9]{1,5})", text)
+    if not match:
+        return None
+    return match.group(1).strip("[]"), int(match.group(2))
+
+
+def is_ours(text: str | None, port: int) -> bool:
+    """Is this proxy setting pointing at our own local listener?"""
+    found = _hostport(text)
+    return bool(found and found[1] == port and found[0] in _LOOPBACK)
 
 
 def _run(cmd: list[str], timeout: int = 25) -> tuple[int, str]:
@@ -195,13 +222,25 @@ def status() -> dict:
             code, out = _run([gs, "get", "org.gnome.system.proxy", "mode"])
             if code == 0 and "manual" in out:
                 _, host = _run([gs, "get", "org.gnome.system.proxy.socks", "host"])
-                info.update(enabled=True, proxy=host.strip("'\n "))
+                _, port = _run([gs, "get", "org.gnome.system.proxy.socks", "port"])
+                host, port = host.strip("'\n "), port.strip("'\n ")
+                # host alone is not an identity: without the port nobody can tell
+                # whether this points at our tunnel or somewhere else
+                info.update(enabled=True, proxy=f"{host}:{port}" if host and port else None)
     elif name == "macos":
         svc = _macos_service()
         if svc:
             code, out = _run(["networksetup", "-getsocksfirewallproxy", svc])
             if code == 0 and "Enabled: Yes" in out:
-                info.update(enabled=True, proxy="(see networksetup -getsocksfirewallproxy)")
+                # 'Server: 127.0.0.1' / 'Port: 25344'. The old placeholder
+                # carried neither, so macOS was never recognised as ours either.
+                fields = {}
+                for line in out.splitlines():
+                    key, sep, value = line.partition(":")
+                    if sep:
+                        fields[key.strip()] = value.strip()
+                host, port = fields.get("Server", ""), fields.get("Port", "")
+                info.update(enabled=True, proxy=f"{host}:{port}" if host and port else None)
     elif name == "windows":
         code, out = _run(["reg", "query", _WIN_KEY, "/v", "ProxyEnable"])
         if code == 0 and "0x1" in out:

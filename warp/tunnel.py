@@ -61,7 +61,7 @@ class Tunnel:
         # a persistent OS setting it outlives the process: a reboot, a crash or a
         # kill leaves the machine pointed at nothing.
         stale = bool(sp.get("enabled") and not running
-                     and f":{self.socks_port}" in str(sp.get("proxy") or ""))
+                     and sysproxy.is_ours(sp.get("proxy"), self.socks_port))
         info = {
             "running": running,
             "socks_port": self.socks_port,
@@ -118,7 +118,7 @@ class Tunnel:
         # Undo the system proxy BEFORE killing the tunnel: leaving the OS pointed
         # at a dead proxy takes the machine offline until someone notices.
         sp = sysproxy.status()
-        if sp.get("enabled") and sp.get("proxy") and f":{self.socks_port}" in str(sp["proxy"]):
+        if sp.get("enabled") and sysproxy.is_ours(sp.get("proxy"), self.socks_port):
             sysproxy.clear()
         pidfile = paths.config_dir() / "wireproxy.pid"
         pid = None
@@ -127,7 +127,7 @@ class Tunnel:
                 pid = int(pidfile.read_text().strip())
             except ValueError:
                 pid = None
-        if pid:
+        if pid and self._looks_like_wireproxy(pid):
             try:
                 if sys.platform == "win32":
                     subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
@@ -143,6 +143,21 @@ class Tunnel:
         return {"ok": not self.is_up(), **self.status(probe=False)}
 
     # ── whole-machine routing ────────────────────────────────────────────────
+    @staticmethod
+    def _looks_like_wireproxy(pid: int) -> bool:
+        """Refuse to signal a pid that is not ours.
+    
+        The pidfile outlives the process, so by the time we act the OS may
+        have handed that pid to something else. When we cannot tell, answer
+        False and leave it alone rather than killing a stranger.
+        """
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                return b"wireproxy" in fh.read()
+        except OSError:
+            # No procfs at all (macOS, Windows): best effort, as before. On
+            # Linux an unreadable entry means we cannot confirm it is ours.
+            return not os.path.exists("/proc")
     def repair_stale_proxy(self) -> bool:
         """Undo a system proxy left pointing at a tunnel that is not running.
 
@@ -158,6 +173,12 @@ class Tunnel:
     def route_system(self, enable: bool = True) -> dict:
         """Point the OS proxy at this tunnel (and start it if needed)."""
         if not enable:
+            # Only undo OUR setting. This used to clear whatever was there,
+            # which could take down a proxy warp never set.
+            sp = sysproxy.status()
+            if sp.get("enabled") and not sysproxy.is_ours(sp.get("proxy"), self.socks_port):
+                return {"ok": False, "error": f"the system proxy points at "
+                        f"{sp.get('proxy')!r}, which is not this tunnel - leaving it alone"}
             return sysproxy.clear()
         if not self.is_up():
             started = self.start()

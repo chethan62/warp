@@ -385,6 +385,73 @@ def test_the_module_stack_stays_acyclic_and_leaves_first():
         assert not graph[leaf], f"{leaf} now imports {sorted(graph[leaf])} - it is a leaf"
 
 
+def test_every_backend_reports_a_proxy_identity_we_can_check():
+    """The stale/clear guard keys on status()['proxy'], so that string has to
+    carry the port on EVERY backend.
+
+    It did not. GNOME returned the host alone and macOS returned a placeholder
+    sentence, so on those two the proxy could never be recognised as ours:
+    stop() left it in place, nothing was ever reported stale, and the startup
+    repair was a no-op - the machine stayed pointed at a dead port with no way
+    back. Only the KDE shape was ever exercised, which is why it shipped.
+    """
+    from warp import sysproxy
+
+    real_run, real_backend, real_first = sysproxy._run, sysproxy.backend, sysproxy._first
+    port = 25344
+
+    def fakery(answers, tool):
+        def _run(cmd, timeout=25):
+            joined = " ".join(cmd)
+            for needle, value in answers:
+                if needle in joined:
+                    return 0, value
+            return 0, ""
+        return _run, (lambda *a: tool)
+
+    macos_out = "Enabled: Yes" + chr(10) + "Server: 127.0.0.1" + chr(10) + "Port: " + str(port)
+    cases = {
+        "kde": ([("--key httpProxy", "socks://127.0.0.1:" + str(port)),
+                 ("--key ProxyType", "1")], "kreadconfig6"),
+        "gnome": ([("proxy mode", "manual"), ("socks host", "'127.0.0.1'"),
+                   ("socks port", str(port))], "gsettings"),
+        # the real command prints a header line first, and _macos_service()
+        # skips it - a fake without one finds no service at all
+        "macos": ([("-listallnetworkservices",
+                    "An asterisk (*) denotes that a network service is disabled." + chr(10) + "Wi-Fi"),
+                   ("-getsocksfirewallproxy", macos_out)], "networksetup"),
+        "windows": ([("ProxyEnable", "ProxyEnable REG_DWORD 0x1"),
+                     ("ProxyServer", "ProxyServer REG_SZ socks=127.0.0.1:" + str(port))], "reg"),
+    }
+    try:
+        for name, (answers, tool) in cases.items():
+            sysproxy.backend = lambda n=name: n
+            sysproxy._run, sysproxy._first = fakery(answers, tool)
+            info = sysproxy.status()
+            assert info["enabled"], name + ": status did not report the proxy as enabled"
+            assert sysproxy.is_ours(info["proxy"], port), (
+                name + ": status reported " + repr(info["proxy"]) + ", which the guard "
+                "cannot recognise as ours - so it would never be cleared")
+    finally:
+        sysproxy._run, sysproxy.backend, sysproxy._first = real_run, real_backend, real_first
+
+
+def test_the_guard_rejects_what_is_not_ours():
+    """The other half: a proxy we did not set must not be claimed or cleared."""
+    from warp import sysproxy
+
+    assert not sysproxy.is_ours(None, 25344)
+    assert not sysproxy.is_ours("", 25344)
+    assert not sysproxy.is_ours("(see networksetup -getsocksfirewallproxy)", 25344)
+    assert not sysproxy.is_ours("socks://10.0.0.5:25344", 25344)   # right port, wrong host
+    assert not sysproxy.is_ours("socks://127.0.0.1:4096", 25344)   # right host, wrong port
+    assert sysproxy.is_ours("socks://127.0.0.1:25344", 25344)
+    assert sysproxy.is_ours("127.0.0.1:25344", 25344)
+    assert sysproxy.is_ours("socks=127.0.0.1:25344", 25344)
+    assert sysproxy.is_ours("http://localhost:25344", 25344)
+
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

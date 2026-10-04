@@ -210,8 +210,12 @@ it meant pointing the OS at a dead listener. Every platform backend can drive
 SOCKS, so one listener covers them all.
 
 Apps that open raw sockets rather than honouring a proxy would need a TUN
-interface, which does require root — that is the one thing a userspace tunnel
-cannot do, and the UI says so rather than implying otherwise.
+interface. That is a *capability* requirement, not a root one: on Linux,
+creating a TUN device, addressing it and installing its routes are all covered by
+`CAP_NET_ADMIN`, which can be granted once to a non-root binary (`setcap`) or to
+a systemd unit (`AmbientCapabilities=`). macOS and Windows do need Administrator.
+Either way it is a privilege a userspace app cannot grant itself, so nothing here
+does it — the UI says so rather than implying otherwise.
 
 ## DNS — what this does NOT do
 
@@ -224,8 +228,11 @@ resolver.
 
 The 1.1.1.1 client *does* reroute DNS because it installs a **TUN device** that
 captures every IP packet, UDP/53 included, so DNS rides the tunnel by
-construction. Creating a TUN interface needs root — the same privilege boundary
-as everything else here.
+construction. That needs `CAP_NET_ADMIN` (Administrator on macOS/Windows) — and
+the capability is **not** sufficient on its own: pointing the resolver at the
+tunnel is a separate privileged write, because `/etc/resolv.conf` is a DAC check
+and `systemd-resolved` goes through polkit. A TUN client needs both, which is why
+this one does neither.
 
 No `DNS =` line is written into the tunnel config for exactly this reason: it
 would be inert, and implying otherwise is worse than saying nothing.
@@ -236,7 +243,7 @@ Without root you can still do this much:
 |---|---|
 | Browsers | enable DNS-over-HTTPS (`https://cloudflare-dns.com/dns-query`) — per browser |
 | CLI tools | `socks5h://` / `--socks5-hostname` hands the hostname to the proxy, so that name is resolved inside the tunnel |
-| Whole system | point the system resolver at the tunnel — needs root (`/etc/resolv.conf`, `systemd-resolved`, or the local resolver's upstream) |
+| Whole system | point the system resolver at the tunnel — **not** covered by `CAP_NET_ADMIN`: needs root (`/etc/resolv.conf`) or a polkit authorisation (`systemd-resolved`), or the local resolver's upstream |
 
 One partial exception worth knowing: **SOCKS5 with remote DNS** (`socks5h://`,
 `--socks5-hostname`) hands the *hostname* to the proxy rather than resolving it

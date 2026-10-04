@@ -18,6 +18,9 @@ opens raw sockets ignores it.
 **DNS.** UDP/53 cannot cross a SOCKS proxy, because SOCKS carries TCP streams,
 not datagrams.
 
+> Fuller, fully-cited write-up of this section: [`no-root-tun.md`](no-root-tun.md)
+> — capability grants, the DNS-config caveat, and the TUN routing loop.
+
 ## Finding 1 — "whole system" needs CAP_NET_ADMIN, not root
 
 On Linux the privileged work happens to be exactly what one capability covers:
