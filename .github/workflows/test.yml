@@ -49,6 +49,38 @@ jobs:
       - name: no hardcoded user paths in shipped code
         run: "! grep -rn --include='*.py' --include='*.html' '/home/' warp/"
 
+  platforms:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The README claims Linux, macOS and Windows; only Linux had ever run.
+        # sysproxy has three separate backends and none of the other two had
+        # been executed anywhere.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        # one shell for all three, so the commands below stay identical
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: tests
+        run: python tests/test_warp.py
+
+      - name: every module compiles
+        run: python -m compileall -q warp/
+
+      - name: the CLI wires up
+        run: |
+          python -m warp --help > /dev/null
+          python -m warp selftest > /dev/null
+
   upstreams:
     runs-on: ubuntu-latest
     steps:
