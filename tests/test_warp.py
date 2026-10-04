@@ -452,6 +452,49 @@ def test_the_guard_rejects_what_is_not_ours():
 
 
 
+def test_a_tunnel_that_holds_the_port_without_carrying_traffic_is_reported():
+    """An open port is not a working tunnel.
+
+    is_up() only asks whether something is listening, so a tunnel that bound and
+    then could not carry a request reads as "running" - and the OS stays pointed
+    at a proxy that fails every connection. That is the same user-visible harm as
+    a stale proxy, so it has to be reported; it must NOT be auto-repaired, because
+    a tunnel that is simply still handshaking looks identical for a moment.
+    """
+    from warp import netprobe, sysproxy
+    from warp.tunnel import Tunnel
+
+    t = Tunnel(25344)
+    real_status, real_egress, real_up = sysproxy.status, netprobe.egress, t.is_up
+    ours = {"supported": True, "backend": "kde", "enabled": True,
+            "proxy": "socks://127.0.0.1:25344"}
+    try:
+        sysproxy.status = lambda: ours
+        t.is_up = lambda: True                       # the port is open
+
+        def cannot_carry(*a, **k):
+            raise OSError("connection reset by peer")
+
+        netprobe.egress = cannot_carry
+        info = t.status()
+        assert info["running"] is True
+        assert info["connected"] is False and info["error"]
+        assert info["system_proxy_broken"] is True, "an unusable tunnel was not reported"
+        assert info["system_proxy_stale"] is False, "it is not the repairable case"
+
+        # control: once it carries traffic, the warning clears
+        netprobe.egress = lambda *a, **k: {"ip": "1.2.3.4", "warp": "on", "loc": "IN"}
+        info = t.status()
+        assert info["connected"] is True and info["system_proxy_broken"] is False
+
+        # control: an unusable tunnel with the proxy OFF is nobody's problem
+        sysproxy.status = lambda: dict(ours, enabled=False, proxy=None)
+        assert t.status()["system_proxy_broken"] is False
+    finally:
+        sysproxy.status, netprobe.egress, t.is_up = real_status, real_egress, real_up
+
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

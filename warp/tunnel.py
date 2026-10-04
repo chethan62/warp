@@ -66,6 +66,7 @@ class Tunnel:
             "running": running,
             "socks_port": self.socks_port,
             "system_proxy": sp,
+            "system_proxy_broken": False,
             "system_proxy_stale": stale,
             "wireproxy": find_wireproxy(),
             "connected": False,
@@ -81,6 +82,17 @@ class Tunnel:
                 info["connected"] = facts.get("warp") == "on"
             except Exception as exc:  # noqa: BLE001 - surfaced to the UI
                 info["error"] = str(exc)
+        # A tunnel can hold the port and carry nothing: the handshake failed, the
+        # proxy answers and drops, the account is wrong. is_up() only asks whether
+        # the port is open, so that reads as "running" while every request through
+        # the proxy fails - the same harm as stale, from the user's side.
+        #
+        # Reported, not repaired: a tunnel that is merely still handshaking looks
+        # identical for a second or two, and tearing that down would be wrong.
+        if probe:
+            info["system_proxy_broken"] = bool(
+                sp.get("enabled") and running and not info["connected"]
+                and sysproxy.is_ours(sp.get("proxy"), self.socks_port))
         return info
 
     # ── lifecycle ────────────────────────────────────────────────────────────
