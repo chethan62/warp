@@ -81,6 +81,26 @@ jobs:
           python -m warp --help > /dev/null
           python -m warp selftest > /dev/null
 
+  freebsd:
+    name: freebsd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # GitHub has no BSD runner, so proving the BSD code paths work needs a VM.
+      # This is the only third-party action in this workflow — drop the job if
+      # you would rather not take that dependency; nothing else depends on it.
+      - name: tests on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: pkg install -y python3
+          run: |
+            python3 --version
+            python3 tests/test_warp.py
+            python3 -m compileall -q warp/
+            python3 -m warp selftest > /dev/null
+
   upstreams:
     runs-on: ubuntu-latest
     steps:
