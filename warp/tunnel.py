@@ -54,10 +54,19 @@ class Tunnel:
 
     def status(self, probe: bool = True) -> dict:
         running = self.is_up()
+        sp = sysproxy.status()
+        # The system proxy points at this tunnel. With the tunnel not running it
+        # is not routing the machine, it is breaking it - nothing is listening on
+        # the port every proxy-aware app was just told to use. And because it is
+        # a persistent OS setting it outlives the process: a reboot, a crash or a
+        # kill leaves the machine pointed at nothing.
+        stale = bool(sp.get("enabled") and not running
+                     and f":{self.socks_port}" in str(sp.get("proxy") or ""))
         info = {
             "running": running,
             "socks_port": self.socks_port,
-            "system_proxy": sysproxy.status(),
+            "system_proxy": sp,
+            "system_proxy_stale": stale,
             "wireproxy": find_wireproxy(),
             "connected": False,
             "ip": None,
@@ -134,6 +143,18 @@ class Tunnel:
         return {"ok": not self.is_up(), **self.status(probe=False)}
 
     # ── whole-machine routing ────────────────────────────────────────────────
+    def repair_stale_proxy(self) -> bool:
+        """Undo a system proxy left pointing at a tunnel that is not running.
+
+        Deliberately narrow: only a proxy aimed at *our* port, and only while the
+        tunnel is down. So it cannot disable somebody else's setting, and cannot
+        break a route that is actually working. Returns True if it cleared one.
+        """
+        if not self.status(probe=False).get("system_proxy_stale"):
+            return False
+        sysproxy.clear()
+        return True
+
     def route_system(self, enable: bool = True) -> dict:
         """Point the OS proxy at this tunnel (and start it if needed)."""
         if not enable:

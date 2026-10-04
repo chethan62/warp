@@ -283,6 +283,108 @@ def test_the_ui_server_stops_when_its_window_closes():
         httpd.server_close()
 
 
+def test_a_stale_system_proxy_is_detected_and_repaired():
+    """A proxy that outlives its tunnel breaks the machine rather than routing it.
+
+    It has to be undone - but only when it is OURS and only while the tunnel is
+    down, or the repair itself becomes the fault. Neither control is theoretical:
+    clobbering another tool's proxy setting, or tearing down a route that is
+    working, would both be worse than the stale state.
+    """
+    from warp import sysproxy
+    from warp.tunnel import Tunnel
+
+    t = Tunnel(1)                        # nothing listens on port 1
+    real_status, real_clear = sysproxy.status, sysproxy.clear
+    cleared = []
+
+    def fake_status(**kwargs):
+        return {"supported": True, "backend": "kde", "enabled": True,
+                "proxy": fake_status.proxy}
+
+    try:
+        sysproxy.clear = lambda: (cleared.append(True), {"ok": True})[1]
+
+        # ours, tunnel down -> stale, and repaired
+        fake_status.proxy = f"socks://127.0.0.1:{t.socks_port}"
+        sysproxy.status = fake_status
+        assert t.status(probe=False)["system_proxy_stale"] is True
+        assert t.repair_stale_proxy() is True
+        assert cleared == [True], "the stale proxy was left in place"
+
+        # control 1: a proxy that is not ours is none of our business
+        cleared.clear()
+        fake_status.proxy = "socks://127.0.0.1:9999"
+        assert t.status(probe=False)["system_proxy_stale"] is False
+        assert t.repair_stale_proxy() is False
+        assert cleared == [], "cleared a proxy that was not ours"
+
+        # control 2: ours with the tunnel up is a working route, not stale
+        cleared.clear()
+        fake_status.proxy = f"socks://127.0.0.1:{t.socks_port}"
+        t.is_up = lambda: True
+        assert t.status(probe=False)["system_proxy_stale"] is False
+        assert t.repair_stale_proxy() is False
+        assert cleared == [], "tore down a route that was working"
+    finally:
+        sysproxy.status, sysproxy.clear = real_status, real_clear
+
+
+def test_the_module_stack_stays_acyclic_and_leaves_first():
+    """warp is layered leaves-first: no cycles, and the low-level modules never
+    reach back up.
+
+    A cycle here is not a style complaint. It is the thing that turns a small fix
+    into "understand the whole package first", which is exactly what makes this
+    harder to debug than it needs to be - so it is worth failing a build over.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "warp"
+    names = sorted(p.stem for p in root.glob("*.py") if p.stem != "__init__")
+
+    graph: dict[str, set[str]] = {}
+    for path in sorted(root.glob("*.py")):
+        if path.stem == "__init__":
+            continue
+        deps: set[str] = set()
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                if node.module:
+                    deps.add(node.module.split(".")[0])
+                else:
+                    deps.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.Import):
+                deps.update(a.name.split(".")[1] for a in node.names
+                            if a.name.startswith("warp."))
+        graph[path.stem] = deps & set(names)
+
+    # no cycles: a topological order must exist and must consume every module
+    order, seen = [], {}
+
+    def visit(node, stack):
+        if seen.get(node) == 1:
+            raise AssertionError(f"import cycle: {' -> '.join(stack + [node])}")
+        if seen.get(node) == 2:
+            return
+        seen[node] = 1
+        for dep in sorted(graph[node]):
+            visit(dep, stack + [node])
+        seen[node] = 2
+        order.append(node)
+
+    for module in names:
+        visit(module, [])
+    assert sorted(order) == names, "the graph is not fully walkable"
+
+    # the bottom of the stack stays the bottom: these must not grow a dependency
+    # on anything else in the package, or every layer above them gets muddier
+    for leaf in ("netprobe", "paths", "sysproxy", "window", "x25519"):
+        assert leaf in graph, f"{leaf} disappeared"
+        assert not graph[leaf], f"{leaf} now imports {sorted(graph[leaf])} - it is a leaf"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

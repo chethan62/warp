@@ -81,6 +81,12 @@ def make_handler(tunnel: Tunnel):
 def serve(port: int = 8787, host: str = "127.0.0.1", open_browser: bool = True,
           prefer_tab: bool = False) -> None:
     tunnel = Tunnel()
+    # Launching the app is the moment to undo a proxy that outlived its tunnel -
+    # after a reboot this is the first thing that runs, and until it does, the
+    # machine's proxy-aware apps are pointed at a dead port.
+    if tunnel.repair_stale_proxy():
+        print("cleared a stale system proxy that pointed at this tunnel while it "
+              "was not running — the machine can reach the network again")
     httpd = ThreadingHTTPServer((host, port), make_handler(tunnel))
     url = f"http://{host}:{port}/"
     print(f"warp ready — {url}")

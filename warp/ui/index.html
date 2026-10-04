@@ -158,20 +158,21 @@ function render(s) {
   $('loc').textContent = s.loc || '—';
   $('warp').textContent = s.warp || (s.running ? 'unknown' : 'off');
   $('socks').textContent = '127.0.0.1:' + s.socks_port;
-  renderRouting(s.system_proxy);
+  renderRouting(s.system_proxy, s.system_proxy_stale);
   $('bin').textContent = s.wireproxy ? s.wireproxy.split(/[\\/]/).pop() : 'not found';
   $('bin').title = s.wireproxy || '';
   $('err').textContent = s.error || (s.wireproxy ? '' : 'wireproxy could not be obtained — see README');
   $('ver').textContent = s.version ? 'v' + s.version : '';
 }
 
-function renderRouting(sp) {
+function renderRouting(sp, stale) {
   const on = !!(sp && sp.enabled);
   const row = $('spRow');
   row.setAttribute('aria-checked', on ? 'true' : 'false');
   row.setAttribute('aria-disabled', (sp && sp.supported) ? 'false' : 'true');
   $('spSub').textContent = !(sp && sp.supported)
     ? 'No supported system-proxy backend on this platform'
+    : stale ? 'On, but nothing is listening - this is blocking traffic. Turn it off.'
     : on ? 'On — ' + (sp.proxy || 'set') + ' (' + sp.backend + ')'
          : 'Set the system proxy so apps use the tunnel (' + sp.backend + ')';
 }
