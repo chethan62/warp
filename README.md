@@ -1,5 +1,7 @@
 # warp
 
+[![test](https://github.com/chethan62/warp/actions/workflows/test.yml/badge.svg)](https://github.com/chethan62/warp/actions/workflows/test.yml)
+
 A Cloudflare WARP client in the shape of the 1.1.1.1 app: one page, one big
 toggle, your egress IP. Cross-platform, **no root**, **no dependencies** —
 stdlib Python only, no npm, no bundler.
