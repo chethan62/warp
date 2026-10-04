@@ -21,8 +21,15 @@ stdlib Python only, no npm, no bundler.
 Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/chethan62/warp/main/packaging/install.sh | sh
+curl -fsSL https://github.com/chethan62/warp/releases/latest/download/warp-linux-x86_64.tar.gz \
+  | tar -xz -C ~/.local --strip-components=1
 ```
+
+That is the whole install: a plain tree with a bundled Python, no root, and no
+**FUSE** — nothing is mounted. `warp` lands in `~/.local/bin` with a desktop
+entry beside it. (An AppImage is attached to each release as well, but AppImages
+mount themselves with FUSE and `libfuse2` is absent by default on many systems,
+including Ubuntu — which is why this is not the suggested install.)
 
 Windows (PowerShell):
 
@@ -134,10 +141,12 @@ its state lives in the usual per-user config dir — not inside the image.
 
 Build it yourself (needs `appimagetool` and `rsvg-convert`):
 
+One build emits both Linux artifacts — the AppImage and the FUSE-free tarball:
+
 ```sh
-./packaging/build-appimage.sh --with-python    # fetches a Python, trims it, bundles it
-./packaging/build-appimage.sh                  # launcher-style: needs host python3
-PYTHON_BUNDLE=/opt/python3 ./packaging/build-appimage.sh   # bring your own
+./packaging/build-linux.sh --with-python    # fetches a Python, trims it, bundles it
+./packaging/build-linux.sh                  # launcher-style: needs host python3
+PYTHON_BUNDLE=/opt/python3 ./packaging/build-linux.sh   # bring your own
 ```
 
 `--with-python` pulls a python-build-standalone release, drops what a CLI never
@@ -260,7 +269,7 @@ possible without privilege — is researched and cited in
 | `warp/window.py` | opens the UI as its own window (browser app mode) |
 | `warp/ui/index.html` | the Fluent UI |
 | `tests/test_warp.py` | runnable checks (no pytest needed) |
-| `packaging/` | AppImage build, release upload, upstream canary |
+| `packaging/` | Linux builds (AppImage + tarball), release upload, canary |
 | `docs/limits-and-options.md` | the ceiling, researched and cited |
 
 ## State

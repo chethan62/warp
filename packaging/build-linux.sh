@@ -1,14 +1,23 @@
 #!/bin/sh
-# Build an AppImage for warp.
+# Build the Linux artifacts for warp.
 #
-#   ./packaging/build-appimage.sh                 # launcher-style (host python3)
-#   ./packaging/build-appimage.sh --with-python   # self-contained
+#   ./packaging/build-linux.sh                 # launcher-style (host python3)
+#   ./packaging/build-linux.sh --with-python   # self-contained
 #
-# --with-python downloads a python-build-standalone release, trims what an
-# interpreter needs but a CLI does not (pip, idle, tk, tests, headers), and
-# bundles it. Override the source tree with PYTHON_BUNDLE=/path/to/python.
+# Two artifacts come out of one build, from the same payload:
 #
-#   PYTHON_BUNDLE=/opt/python3 ./packaging/build-appimage.sh
+#   warp-<ver>-x86_64.AppImage          one portable file (needs FUSE to mount)
+#   warp-<ver>-linux-x86_64.tar.gz      a plain ~/.local tree (needs nothing)
+#
+# The tarball exists because FUSE is not a safe assumption: AppImages mount
+# themselves with it, libfuse2 is absent by default on many systems (Ubuntu
+# dropped it), and without it the image cannot launch at all. Nothing here needs
+# a mount, so the tarball just unpacks:
+#
+#   tar -C ~/.local -xf warp-linux-x86_64.tar.gz --strip-components=1
+#
+# --with-python downloads a python-build-standalone release and trims what an
+# interpreter needs but a CLI does not. Override with PYTHON_BUNDLE=/path/to/python.
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -96,10 +105,15 @@ if [ -n "$PY_TREE" ]; then
     trim_python "$APPDIR/python"
     du -sh "$APPDIR/python" | sed 's/^/  after trim: /'
 else
-    echo "launcher-style build — the AppImage will need python3 on the host"
+    echo "launcher-style build — the artifacts will need python3 on the host"
 fi
 
-# ── entry point, desktop file, icon ─────────────────────────────────────────
+rsvg-convert -w 512 -h 512 "$ROOT/packaging/warp.svg" -o "$APPDIR/warp.png"
+
+VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$ROOT/warp/__init__.py")"
+VERSION="${VERSION:-0}"
+
+# ── artifact 1: the AppImage ────────────────────────────────────────────────
 cp "$ROOT/packaging/AppRun" "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
 
@@ -117,13 +131,62 @@ Keywords=vpn;warp;cloudflare;wireguard;socks5;proxy;
 StartupNotify=true
 DESKTOP
 
-rsvg-convert -w 512 -h 512 "$ROOT/packaging/warp.svg" -o "$APPDIR/warp.png"
 cp "$APPDIR/warp.png" "$APPDIR/.DirIcon"
 cp "$ROOT/packaging/warp.svg" "$APPDIR/warp.svg"
 cp "$APPDIR/warp.png" "$APPDIR/usr/share/icons/hicolor/512x512/apps/warp.png"
 
-# ── build ───────────────────────────────────────────────────────────────────
-VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$ROOT/warp/__init__.py")"
-OUT="$OUT_DIR/warp-${VERSION:-0}-x86_64.AppImage"
+OUT="$OUT_DIR/warp-$VERSION-x86_64.AppImage"
 ARCH=x86_64 "$APPIMAGE_TOOL" --no-appstream "$APPDIR" "$OUT"
 echo "built: $OUT ($(du -h "$OUT" | cut -f1))"
+
+# ── artifact 2: the FUSE-free tree ──────────────────────────────────────────
+# Same payload laid out as ~/.local, so a plain `tar -C ~/.local -xf` is the
+# whole install. No mount, no FUSE, no runtime to satisfy.
+TREE="warp-$VERSION-linux-x86_64"
+TARROOT="$WORK/$TREE"
+mkdir -p "$TARROOT/bin" "$TARROOT/lib/warp" \
+         "$TARROOT/share/applications" "$TARROOT/share/icons/hicolor/512x512/apps"
+
+cp -r "$APPDIR/warp" "$TARROOT/lib/warp/warp"
+[ -d "$APPDIR/python" ] && cp -r "$APPDIR/python" "$TARROOT/lib/warp/python"
+cp "$ROOT/README.md" "$ROOT/LICENSE" "$TARROOT/lib/warp/"
+cp "$APPDIR/warp.png" "$TARROOT/share/icons/hicolor/512x512/apps/warp.png"
+
+# Resolve the tree from the script's own location: the archive has to work from
+# any prefix (~/.local, /opt, a USB stick) and for any user, so no absolute path
+# is baked in anywhere.
+cat > "$TARROOT/bin/warp" <<'LAUNCHER'
+#!/bin/sh
+set -eu
+bin=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root=$(dirname "$bin")
+export PYTHONPATH="$root/lib/warp"
+PY="$root/lib/warp/python/bin/python3"
+if [ ! -x "$PY" ]; then PY=$(command -v python3 || true); fi
+[ -x "$PY" ] || { echo "warp: no python3 — install one, or use the bundled build" >&2; exit 1; }
+exec "$PY" -m warp "$@"
+LAUNCHER
+chmod +x "$TARROOT/bin/warp"
+
+# Exec is PATH-relative on purpose: a baked /home/<user>/... path is wrong for
+# everyone else who unpacks this, and ~/.local/bin is on PATH by default.
+cat > "$TARROOT/share/applications/warp.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=warp
+GenericName=Cloudflare WARP client
+Comment=Route this computer through Cloudflare WARP, without root
+Exec=warp
+Icon=warp
+Terminal=false
+Categories=Network;
+Keywords=vpn;warp;cloudflare;wireguard;socks5;proxy;
+StartupWMClass=warp
+DESKTOP
+
+tar -C "$WORK" -czf "$OUT_DIR/$TREE.tar.gz" "$TREE"
+# A stable name too, so `releases/latest/download/warp-linux-x86_64.tar.gz`
+# works without asking the API which version is current.
+cp "$OUT_DIR/$TREE.tar.gz" "$OUT_DIR/warp-linux-x86_64.tar.gz"
+echo "built: $OUT_DIR/$TREE.tar.gz ($(du -h "$OUT_DIR/$TREE.tar.gz" | cut -f1))"
+echo "built: $OUT_DIR/warp-linux-x86_64.tar.gz (stable name)"
