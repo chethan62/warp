@@ -191,7 +191,7 @@ uniform, and it is worth knowing before you rely on it:
 |---|---|
 | KDE/KIO apps (Dolphin, and most KDE tooling) | **yes** — measured: a KIO client left from the tunnel's Cloudflare address with `warp=on`, and went direct again the moment the setting was turned off *while the tunnel stayed up* |
 | command-line tools (`curl`, `wget`) | only if `http_proxy`/`all_proxy` are set, and warp does not set them — use `--socks5-hostname` instead |
-| browsers | **not guaranteed.** A Chromium here went direct with the setting on, and ignored the GNOME socks setting in a control too, so that test cannot tell "ignores system proxies" from "never reads them". Do not assume a browser is covered: set its own proxy, or use DoH |
+| browsers | **unmeasured — do not rely on it.** A Chromium here went direct with the setting on, but that browser was launched by tooling whose environment and request layer are not a fair test, so it says nothing about a browser in your session. Chromium's own proxy service does log `kioslaverc_touched` when this file changes, so it has a KDE provider and may well follow it there — unverified either way. Set the browser's own proxy, or use DoH, if it matters |
 | GNOME / macOS / Windows | not measured on this machine |
 
 An earlier version of this file claimed "browsers, app stores, most GUI toolkits"
