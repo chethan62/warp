@@ -45,6 +45,25 @@ def test_sysproxy_status_shape():
         assert key in st, st
 
 
+def test_sysproxy_backend_is_detected_per_platform():
+    """The backend must actually be FOUND on macOS and Windows.
+
+    test_sysproxy_status_shape only asserts the four keys exist, which
+    "supported: False" also satisfies — so the macOS and Windows CI jobs would
+    have gone green while detecting nothing at all. On macOS in particular,
+    backend() returns None unless networksetup is on PATH.
+    """
+    st = sysproxy.status()
+    if sys.platform == "darwin":
+        assert st["backend"] == "macos", f"macOS backend not detected: {st}"
+    elif sys.platform == "win32":
+        assert st["backend"] == "windows", f"Windows backend not detected: {st}"
+    else:
+        # a CI runner has no desktop session, so there may legitimately be no
+        # backend here; only that nothing impossible is reported
+        assert st["backend"] in (None, "kde", "gnome"), st
+
+
 def test_config_shape():
     acct = {
         "private_key": "PRIV", "address_v4": "172.16.0.2",
