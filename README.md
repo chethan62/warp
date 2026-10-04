@@ -12,6 +12,8 @@ stdlib Python only, no npm, no bundler.
    egress 104.28.220.169 · warp on
 ```
 
+![the warp window](docs/screenshot.png)
+
 ## Why userspace
 
 The official client (`warp-cli`) and an in-kernel WireGuard interface both need
@@ -53,6 +55,34 @@ Or install it as a command:
 ```sh
 pipx install .             # then: warp
 ```
+
+## AppImage
+
+`dist/warp-1.0.0-x86_64.AppImage` (~27 MB) — self-contained, no system Python
+needed, no install step:
+
+```sh
+./warp-1.0.0-x86_64.AppImage            # UI
+./warp-1.0.0-x86_64.AppImage status     # every subcommand works
+./warp-1.0.0-x86_64.AppImage up         # connect
+```
+
+Anything passed to the AppImage goes straight through to `python3 -m warp`, and
+its state lives in the usual per-user config dir — not inside the image.
+
+Build it yourself (needs `appimagetool` and `rsvg-convert`):
+
+```sh
+./packaging/build-appimage.sh --with-python    # fetches a Python, trims it, bundles it
+./packaging/build-appimage.sh                  # launcher-style: needs host python3
+PYTHON_BUNDLE=/opt/python3 ./packaging/build-appimage.sh   # bring your own
+```
+
+`--with-python` pulls a python-build-standalone release, drops what a CLI never
+touches (pip, idle, tk, tests, headers), and bundles the rest — a 404 MB debug
+tree becomes ~27 MB of AppImage. The AppRun clears the `PYTHONHOME` that the
+AppImage runtime injects pointing at its own mount, which would otherwise kill
+the bundled interpreter on startup.
 
 ## How it works
 

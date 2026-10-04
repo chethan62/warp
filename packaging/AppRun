@@ -1,0 +1,27 @@
+#!/bin/sh
+# warp — AppImage entry point.
+#
+# Launcher-first, and deliberately thin: the app itself is `python3 -m warp`.
+set -eu
+
+HERE="$(dirname "$(readlink -f "$0")")"
+
+# The AppImage runtime exports PYTHONHOME/PYTHONPATH pointing INSIDE its own
+# mount. Inherited by our interpreter that is fatal ("Python path configuration:
+# PYTHONHOME = …"), so clear them and set the path we actually want.
+unset PYTHONHOME
+export PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONDONTWRITEBYTECODE=1   # the payload is read-only by design
+
+# Prefer the interpreter we bundled; fall back to the host's (launcher-style
+# build, when no python tree was supplied at build time).
+PY="$HERE/python/bin/python3"
+if [ ! -x "$PY" ]; then
+    PY="$(command -v python3 || true)"
+fi
+if [ -z "$PY" ] || [ ! -x "$PY" ]; then
+    echo "warp: no python3 available (bundled: $HERE/python, host: none)" >&2
+    exit 1
+fi
+
+exec "$PY" -m warp "$@"

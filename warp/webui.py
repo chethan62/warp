@@ -11,7 +11,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-from . import cloudflare, paths
+from . import __version__, cloudflare, paths
 from .tunnel import Tunnel
 
 
@@ -42,7 +42,7 @@ def make_handler(tunnel: Tunnel):
                     return self._send(500, f"UI missing: {exc}".encode(), "text/plain")
                 return self._send(200, html, "text/html; charset=utf-8")
             if route == "/api/status":
-                return self._json(tunnel.status())
+                return self._json({**tunnel.status(), "version": __version__})
             return self._json({"error": "not found"}, 404)
 
         def do_POST(self):  # noqa: N802
