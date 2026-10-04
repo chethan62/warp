@@ -101,6 +101,58 @@ jobs:
             python3 -m compileall -q warp/
             python3 -m warp selftest > /dev/null
 
+  install-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The real thing: fetch the published AppImage and install it.
+      - name: run the one-liner
+        run: sh packaging/install.sh
+
+      - name: the installed app runs
+        run: ~/Applications/warp.AppImage selftest
+
+      - name: it left a usable launcher behind
+        run: |
+          test -x ~/Applications/warp.AppImage
+          test -f ~/.local/share/applications/warp.desktop
+          test -f ~/.local/share/icons/hicolor/512x512/apps/warp.png
+          grep -q "$HOME/Applications/warp.AppImage" ~/.local/share/applications/warp.desktop
+
+  install-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: run the one-liner
+        run: powershell -ExecutionPolicy Bypass -File packaging/install.ps1
+
+      # Run the installed launcher, not python directly — warp.cmd and the
+      # PYTHONPATH it sets are the part that can silently be wrong.
+      - name: the installed launcher runs
+        shell: cmd
+        run: '"%LOCALAPPDATA%\Programs\warp\warp.cmd" selftest'
+
+      - name: it left a usable shortcut and command behind
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:LOCALAPPDATA 'Programs\warp'
+          if (-not (Test-Path (Join-Path $dest 'warp.cmd')))     { throw 'no warp.cmd' }
+          if (-not (Test-Path (Join-Path $dest 'packaging\warp.ico'))) { throw 'no icon' }
+          $lnk = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\warp.lnk'
+          if (-not (Test-Path $lnk)) { throw 'no Start Menu shortcut' }
+          $path = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if ($path -notlike "*$dest*") { throw 'not on the user PATH' }
+
   upstreams:
     runs-on: ubuntu-latest
     steps:

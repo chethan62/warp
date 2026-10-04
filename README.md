@@ -16,6 +16,34 @@ stdlib Python only, no npm, no bundler.
 
 ![the warp window](docs/screenshot.png)
 
+## Install
+
+Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chethan62/warp/main/packaging/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/chethan62/warp/main/packaging/install.ps1 | iex
+```
+
+Both are user-level — no admin, nothing system-wide — and both finish by running
+the app once, so a silent failure is not a possible outcome. They put `warp` on
+your PATH with a desktop / Start Menu entry.
+
+Linux installs the self-contained AppImage, so nothing else is needed. Windows
+installs from source and needs **Python 3.9+**; with none present it prints the
+`winget install Python.Python.3.12` line instead of failing quietly.
+
+Or install from source on any platform:
+
+```sh
+pipx install git+https://github.com/chethan62/warp
+```
+
 ## Why userspace
 
 The official client (`warp-cli`) and an in-kernel WireGuard interface both need
