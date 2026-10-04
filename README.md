@@ -38,6 +38,25 @@ so only the public half ever leaves the machine.
 
 Pin a different wireproxy with `WARP_WIREPROXY_VERSION=1.1.3`.
 
+## Platforms
+
+| Platform | Status | How the tunnel binary is obtained |
+|---|---|---|
+| Linux | works — AppImage (bundled Python) or source | automatic; upstream publishes 8 linux arches |
+| Windows | works — source / `pipx`; CI runs the suite there | automatic (386/amd64; on ARM64 the amd64 build runs under emulation) |
+| macOS | works — source / `pipx`; CI runs the suite there | automatic (amd64/arm64) |
+| FreeBSD | works **if wireproxy is installed** | `pkg install wireproxy` — upstream publishes no BSD binary |
+| other BSD | expected, but unverified | `go install github.com/pufferffish/wireproxy/cmd/wireproxy@v1.1.3` |
+
+The tunnel is `wireproxy`, and upstream publishes **darwin, linux and windows
+only** (checked against the v1.1.3 release). Where there is no published binary,
+warp uses whatever `wireproxy` is already on `PATH` — that lookup is why a
+single `pkg install wireproxy` is the whole FreeBSD setup.
+
+There is no bundled-Python artifact for BSD: python-build-standalone publishes no
+BSD target, so a BSD runs warp from source against the system `python3` (all three
+BSD package one). The AppImage is Linux-only by construction.
+
 ## Run
 
 ```sh

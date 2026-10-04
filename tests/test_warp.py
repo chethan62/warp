@@ -110,6 +110,38 @@ def test_prefer_tab_skips_the_window_entirely():
         find.assert_not_called()
 
 
+def test_installed_wireproxy_is_used_before_downloading():
+    """The README promised a PATH lookup that the code never did.
+
+    On a BSD it is not a preference but the only route: upstream publishes no
+    BSD binary, so a package-manager copy is the sole way to have one.
+    """
+    from unittest import mock
+    with mock.patch.object(provision, "bin_path", return_value="/nonexistent/wireproxy"), \
+         mock.patch.object(provision, "system_wireproxy",
+                           return_value="/usr/local/bin/wireproxy"), \
+         mock.patch.object(provision, "_is_runnable", return_value=True):
+        assert provision.ensure() == "/usr/local/bin/wireproxy"
+
+
+def test_bsd_reports_what_to_actually_do():
+    """'no wireproxy build for freebsd13' reads as a bug, not an instruction."""
+    from unittest import mock
+    with mock.patch.object(sys, "platform", "freebsd13"), \
+         mock.patch.object(platform, "machine", return_value="amd64"), \
+         mock.patch.object(provision, "bin_path", return_value="/nonexistent/wireproxy"), \
+         mock.patch.object(provision, "system_wireproxy", return_value=None):
+        try:
+            provision.ensure()
+        except RuntimeError as exc:
+            msg = str(exc)
+            assert "no freebsd13 build" in msg, msg
+            assert "pkg install wireproxy" in msg, msg
+            assert "go install" in msg, msg
+        else:
+            raise AssertionError("expected RuntimeError on a BSD with nothing installed")
+
+
 def test_config_shape():
     acct = {
         "private_key": "PRIV", "address_v4": "172.16.0.2",

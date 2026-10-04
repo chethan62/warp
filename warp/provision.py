@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import os
 import platform
+import shutil
 import stat
 import subprocess
 import sys
@@ -56,6 +57,32 @@ def bin_path() -> str:
     return str(paths.config_dir() / binary_name())
 
 
+_BSD = ("freebsd", "openbsd", "netbsd", "dragonfly")
+
+
+def system_wireproxy() -> str | None:
+    """A wireproxy the user already installed, if any.
+
+    Upstream publishes no BSD build at all (verified: the v1.1.3 release carries
+    darwin, linux and windows assets only), so on a BSD a package-manager copy is
+    the only way to get one — and the README has always promised this lookup.
+    """
+    return shutil.which("wireproxy") or shutil.which(binary_name())
+
+
+def _nothing_to_download() -> str:
+    plat, machine = sys.platform, platform.machine()
+    if plat.startswith(_BSD):
+        return (
+            f"wireproxy v{VERSION} publishes no {plat} build, so there is nothing to "
+            f"download. Install it and warp will use it:\n"
+            f"  FreeBSD:  pkg install wireproxy\n"
+            f"  others:   go install github.com/pufferffish/wireproxy/cmd/wireproxy@v{VERSION}"
+        )
+    return (f"wireproxy v{VERSION} has no build for {plat}/{machine}, and no "
+            f"'wireproxy' is on PATH")
+
+
 def _download(url: str, timeout: int = 120) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "warp"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -96,9 +123,16 @@ def ensure() -> str:
     if os.path.isfile(dest) and _is_runnable(dest):
         return dest
 
+    # Prefer one the user installed (package manager / ports) over downloading a
+    # second copy — and on a platform upstream ships no binary for, it is the
+    # only way wireproxy can be obtained at all.
+    installed = system_wireproxy()
+    if installed and _is_runnable(installed):
+        return installed
+
     asset = asset_name()
     if not asset:
-        raise RuntimeError(f"no wireproxy build for {sys.platform}/{platform.machine()}")
+        raise RuntimeError(_nothing_to_download())
 
     url = f"{_BASE}/v{VERSION}/{asset}"
     try:
