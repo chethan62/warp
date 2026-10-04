@@ -59,12 +59,18 @@ def wireproxy_assets() -> list[str]:
 
 def pbs_pin() -> tuple[str, str]:
     """(tag, asset pattern) as the AppImage build script pins them."""
-    src = (ROOT / "packaging" / "build-appimage.sh").read_text()
+    path = ROOT / "packaging" / "build-linux.sh"
+    try:
+        src = path.read_text()
+    except OSError as exc:
+        # a rename here silently disables the whole check, so say so loudly
+        raise SystemExit(f"cannot read {path}: {exc} — the pin moved, so this "
+                         f"check is no longer checking anything") from exc
     tag = re.search(r'PBS_TAG="\$\{PBS_TAG:-([^}]+)\}"', src)
     match = re.search(r'PBS_MATCH="\$\{PBS_MATCH:-([^}]+)\}"', src)
     if not tag or not match:
         raise SystemExit(
-            "could not read PBS_TAG/PBS_MATCH from packaging/build-appimage.sh — "
+            f"could not read PBS_TAG/PBS_MATCH from {path} — "
             "the pin moved, so this check is no longer checking anything"
         )
     return tag.group(1), match.group(1)
