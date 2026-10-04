@@ -124,11 +124,17 @@ jobs:
           "$EXEC" selftest
 
       - name: it left a usable launcher behind
+        # Assert what makes the launcher WORK - whatever Exec names must exist
+        # and be executable - not a specific implementation. Demanding the image
+        # here failed on a no-FUSE runner, where Exec correctly names a wrapper.
         run: |
-          test -x ~/Applications/warp.AppImage
+          test -f ~/Applications/warp.AppImage
           test -f ~/.local/share/applications/warp.desktop
           test -f ~/.local/share/icons/hicolor/512x512/apps/warp.png
-          grep -q "$HOME/Applications/warp.AppImage" ~/.local/share/applications/warp.desktop
+          EXEC=$(grep -oP '(?<=^Exec=")[^"]+' ~/.local/share/applications/warp.desktop)
+          echo "Exec -> $EXEC"
+          test -n "$EXEC"
+          test -x "$EXEC"
 
   install-windows:
     runs-on: windows-latest
