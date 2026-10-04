@@ -178,6 +178,11 @@ tunnel is up, and answers **SERVFAIL** the moment the tunnel stops — while the
 machine's normal resolver keeps working. That contrast is what shows the DNS
 really rides the tunnel instead of going direct.
 
+The rest of the ceiling — why the next step up is `CAP_NET_ADMIN` rather than
+root, the routing loop a TUN still has to solve, and what is genuinely not
+possible without privilege — is researched and cited in
+[docs/limits-and-options.md](docs/limits-and-options.md).
+
 ## Layout
 
 | File | Role |
@@ -194,6 +199,8 @@ really rides the tunnel instead of going direct.
 | `warp/webui.py` | HTTP API + UI host |
 | `warp/ui/index.html` | the Fluent UI |
 | `tests/test_warp.py` | runnable checks (no pytest needed) |
+| `packaging/` | AppImage build, release upload, upstream canary |
+| `docs/limits-and-options.md` | the ceiling, researched and cited |
 
 ## State
 
