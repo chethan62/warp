@@ -87,6 +87,61 @@ def test_windows_arm64_uses_the_emulated_asset():
         assert provision.asset_name() == "wireproxy_windows_amd64.tar.gz", provision.asset_name()
 
 
+def test_ui_contrast_tokens():
+    """Every colour pair the UI paints clears its WCAG floor.
+
+    Text needs 4.5:1; non-text UI — the switch track, the off glyph, the state
+    dot — needs 3:1 (WCAG 1.4.11). The card is translucent, so it is composited
+    over the gradient's first stop before measuring.
+
+    This exists because a dark-only screenshot pass left the light theme
+    unverified, and the light off-state was measurably invisible (1.65:1).
+    """
+    import re
+
+    src = (Path(__file__).resolve().parent.parent / "warp" / "ui" / "index.html").read_text()
+
+    def tokens(pattern):
+        m = re.search(pattern, src, re.S)
+        assert m, "token block not found — did the CSS move?"
+        return dict(re.findall(r"--([\w-]+)\s*:\s*([^;]+);", m.group(1)))
+
+    def rgb(c):
+        if c.startswith("#"):
+            h = c[1:]
+            if len(h) == 3:
+                h = "".join(x * 2 for x in h)
+            return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (1.0,)
+        p = [x.strip() for x in re.match(r"rgba?\(([^)]+)\)", c).group(1).split(",")]
+        return (int(p[0]), int(p[1]), int(p[2]), float(p[3]) if len(p) > 3 else 1.0)
+
+    def over(fg, bg):
+        return tuple(round(fg[i] * fg[3] + bg[i] * (1 - fg[3])) for i in range(3))
+
+    def lum(c):
+        def f(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
+
+    def ratio(x, y):
+        lx, ly = lum(x), lum(y)
+        return (max(lx, ly) + 0.05) / (min(lx, ly) + 0.05)
+
+    pairs = [("text", 4.5), ("text-2", 4.5), ("text-3", 4.5), ("accent", 4.5),
+             ("err", 4.5), ("ok", 3.0), ("idle-2", 3.0), ("idle", 3.0)]
+    themes = {
+        "light": tokens(r":root\{(.*?)\}"),
+        "dark": tokens(r"prefers-color-scheme:dark\)\{:root\{(.*?)\}\}"),
+    }
+    for name, toks in themes.items():
+        assert toks, f"{name} token block empty"
+        card = over(rgb(toks["card"]), rgb(re.search(r"#[0-9a-f]{6}", toks["bg"]).group(0)))
+        for tok, need in pairs:
+            got = ratio(rgb(toks[tok]), card)
+            assert got >= need, f"{name}: --{tok} is {got:.2f}:1 on the card, needs {need}:1"
+
+
 def test_dechunk():
     assert _dechunk(b"4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n") == b"Wikipedia"
     assert _dechunk(b"plain, not chunked") == b"plain, not chunked"
