@@ -60,3 +60,28 @@ jobs:
 
       - name: pinned third-party artifacts still exist upstream
         run: python packaging/check-upstreams.py
+
+  appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin
+          curl -sSL -o /usr/local/bin/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          sudo chmod +x /usr/local/bin/appimagetool
+
+      # The upstreams job only proves the pinned artifacts exist. It cannot see
+      # the script that fetches and assembles them, so a malformed API path
+      # there (releases/ instead of releases/tags/) sailed straight past it and
+      # only surfaced when the build was actually run. This job is that run.
+      - name: build it and prove the result runs
+        env:
+          # the runner has no FUSE: appimagetool has to unpack itself, not mount
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          ./packaging/build-appimage.sh --with-python
+          ./dist/warp-*-x86_64.AppImage selftest

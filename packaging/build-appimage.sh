@@ -58,8 +58,8 @@ trim_python() {
 fetch_python() {
     dest="$WORK/python"
     echo "fetching a python-build-standalone release matching: $PBS_MATCH" >&2
-    endpoint="releases/$PBS_TAG"
-    [ "$PBS_TAG" = "latest" ] && endpoint="releases/latest"
+    endpoint="releases/tags/$PBS_TAG"
+    if [ "$PBS_TAG" = "latest" ]; then endpoint="releases/latest"; fi
     url="$(curl -sL "https://api.github.com/repos/$PBS_REPO/$endpoint" \
         | python3 -c "
 import json,sys,re
