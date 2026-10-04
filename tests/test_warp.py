@@ -82,11 +82,15 @@ def test_flatpak_profile_goes_where_the_sandbox_can_write():
     A host path there is silently ignored and the browser falls back to its own
     profile, which is what happened before this was fixed.
     """
-    flat = window.profile_for(["flatpak", "run", "com.google.Chrome"],
-                              Path("/home/x/.config/warp/browser"))
-    assert flat == str(Path.home() / ".var/app/com.google.Chrome/config/warp-browser"), flat
-    # a normal launcher keeps the host path
-    assert window.profile_for(["chromium"], Path("/tmp/p")) == "/tmp/p"
+    host = Path("/home/x/.config/warp/browser")
+    flat = window.profile_for(["flatpak", "run", "com.google.Chrome"], host)
+    expected = str(Path.home() / ".var" / "app" / "com.google.Chrome"
+                   / "config" / "warp-browser")
+    assert flat == expected, flat
+    # a normal launcher keeps the host path. Compare Path-to-Path: str(Path)
+    # uses backslashes on Windows, so a "/tmp/p" literal would only pass on POSIX
+    # (it did not, and the Windows job is the only one that could tell).
+    assert window.profile_for(["chromium"], host) == str(host)
     assert window.profile_for(["chromium"], None) is None
 
 
