@@ -14,7 +14,13 @@ stdlib Python only, no npm, no bundler.
    egress 104.28.220.169 · warp on
 ```
 
-![the warp window](docs/screenshot.png)
+<p>
+  <img src="docs/screenshot.png" width="420" alt="warp, dark theme: connected, showing the egress IP and location">
+  <img src="docs/screenshot-light.png" width="420" alt="warp, light theme">
+</p>
+
+The window follows the system theme — both are the real UI, captured from a live
+connection.
 
 ## Install
 
