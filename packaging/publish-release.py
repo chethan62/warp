@@ -44,8 +44,8 @@ A single-file AppImage is also attached for anyone who prefers it, or has FUSE:
 ### Honest limits
 
 - **Not a TUN device.** It is a SOCKS5 proxy plus a system-proxy setting, so
-  proxy-aware apps follow it; apps that open raw sockets do not. A TUN interface
-  would need root.
+  clients that read that setting follow it - measured for KDE/KIO, unverified for
+  browsers; apps that open raw sockets do not. A TUN interface would need root.
 - **DNS is not tunnelled by default.** UDP/53 cannot cross a SOCKS proxy. There
   is a `warp dns serve` bridge (DoH over the tunnel) and `warp dns` prints the
   exact root command for your resolver — but the system-wide step is yours to run.

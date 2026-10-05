@@ -119,7 +119,7 @@ button.link{background:none;border:0;color:var(--accent);font:inherit;cursor:poi
          aria-label="Route this computer through warp">
       <div>
         <div class="t">Route this computer</div>
-        <div class="s" id="spSub">Set the system proxy so apps use the tunnel</div>
+        <div class="s" id="spSub">Point the system proxy at the tunnel - apps that read it follow</div>
       </div>
       <span class="switch" aria-hidden="true"><span class="knob"></span></span>
     </div>
@@ -135,8 +135,9 @@ button.link{background:none;border:0;color:var(--accent);font:inherit;cursor:poi
     </dl>
   </section>
   <p class="err" id="err"></p>
-  <p class="foot" id="foot">Browsers and other proxy-aware apps follow the system proxy above.
-  Apps that open raw sockets would need a TUN interface, which requires root.
+  <p class="foot" id="foot">Which clients follow the system proxy differs by client &mdash; KDE/KIO
+  measured yes, browsers unverified. Apps that open raw sockets would need a TUN
+  interface, which requires root.
   <button class="link" id="reset">Re-register account</button> <span class="ver" id="ver"></span></p>
 </main>
 
